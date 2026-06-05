@@ -99,6 +99,7 @@
                           ToolTip="Double-click a story to open it in your browser">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
+                        <DataGridTextColumn Header="Published" Binding="{Binding PublishedAt.LocalDateTime, StringFormat=yyyy-MM-dd}" Width="95" />
                         <DataGridTextColumn Header="Views" Binding="{Binding Views}" Width="80" />
                         <DataGridTextColumn Header="Reads" Binding="{Binding Reads}" Width="80" />
                         <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />

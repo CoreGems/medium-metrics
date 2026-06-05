@@ -25,7 +25,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
         "  user(username: $username) {\n" +
         "    id\n" +
         "    postsConnection(first: $first, after: $after, orderBy: $orderBy, filter: $filter) {\n" +
-        "      edges { node { id title mediumUrl totalStats { presentations views reads } " +
+        "      edges { node { id title mediumUrl firstPublishedAt totalStats { presentations views reads } " +
         "earnings { total { currencyCode units nanos } } } }\n" +
         "      pageInfo { endCursor hasNextPage }\n" +
         "    }\n" +
@@ -149,6 +149,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
                             StoryId = GetString(node, "id") ?? "",
                             Title = GetString(node, "title") ?? "(untitled)",
                             Url = GetString(node, "mediumUrl") ?? "",
+                            PublishedAt = GetTimestampMs(node, "firstPublishedAt"),
                             Views = GetLong(ts, "views"),
                             Reads = GetLong(ts, "reads"),
                             Impressions = GetLong(ts, "presentations"),
@@ -284,6 +285,13 @@ public sealed class MediumStatsClient : IMediumStatsClient
         && p.ValueKind == JsonValueKind.String
             ? p.GetString()
             : null;
+
+    /// <summary>Reads an epoch-milliseconds field as a UTC timestamp, or null if absent/zero.</summary>
+    private static DateTimeOffset? GetTimestampMs(JsonElement obj, string name)
+    {
+        long ms = GetLong(obj, name);
+        return ms > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null;
+    }
 
     /// <summary>Reads node.earnings.total as USD: units + nanos/1e9 (e.g. 1 unit + 390000000 nanos = $1.39).</summary>
     private static decimal GetEarnings(JsonElement node)

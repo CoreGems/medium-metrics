@@ -20,6 +20,7 @@ public class GraphQlParsingTests
             "[{\"data\":{\"user\":{\"id\":\"u1\",\"postsConnection\":{\"edges\":[" +
             "{\"node\":{\"id\":\"p1\",\"title\":\"The Ukrainian Guide to NATO Diplomacy\"," +
             "\"mediumUrl\":\"https://medium.com/@alexbuzunov/the-ukrainian-guide-2d6e5011e5c0\"," +
+            "\"firstPublishedAt\":1780095365314," +
             "\"totalStats\":{\"presentations\":292,\"views\":45,\"reads\":32}," +
             "\"earnings\":{\"total\":{\"currencyCode\":\"USD\",\"units\":1,\"nanos\":390000000}}}}," +
             "{\"node\":{\"id\":\"p2\",\"title\":\"Notes\",\"totalStats\":{\"presentations\":511,\"views\":200,\"reads\":137}," +
@@ -37,6 +38,7 @@ public class GraphQlParsingTests
         Assert.Equal(32, snap.Stories[0].Reads);
         Assert.Equal(292, snap.Stories[0].Impressions);
         Assert.Equal(1.39m, snap.Stories[0].EarningsUsd);   // 1 unit + 390000000 nanos
+        Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1780095365314), snap.Stories[0].PublishedAt);
         Assert.Equal(245, snap.TotalViews);                 // 45 + 200
         Assert.Equal(169, snap.TotalReads);                 // 32 + 137
         Assert.Equal(803, snap.TotalImpressions);           // 292 + 511

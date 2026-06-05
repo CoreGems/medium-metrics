@@ -11,6 +11,9 @@ public sealed class StorySnapshot
     /// <summary>Canonical Medium URL for the story (used to open it in a browser).</summary>
     public string Url { get; set; } = "";
 
+    /// <summary>When the story was first published (UTC), if known.</summary>
+    public DateTimeOffset? PublishedAt { get; set; }
+
     public long Views { get; set; }
     public long Reads { get; set; }
 
