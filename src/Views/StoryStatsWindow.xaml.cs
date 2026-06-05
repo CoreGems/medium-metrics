@@ -37,6 +37,16 @@ public partial class StoryStatsWindow : Window
         {
             var d = await _app.FetchStoryDetailAsync(_story.StoryId);
 
+            // The per-story funnel is the live, authoritative views/reads — refresh the
+            // headline tiles from it (the list-query values can lag). Guard on > 0 so a
+            // failed funnel doesn't blank good snapshot data.
+            if (d.ViewersCount > 0)
+            {
+                ViewsText.Text = d.ViewersCount.ToString("N0");
+                ReadsText.Text = d.ReadersCount.ToString("N0");
+                RatioText.Text = ((double)d.ReadersCount / d.ViewersCount).ToString("P0");
+            }
+
             FollowersText.Text = $"{d.FollowersGained:N0} ({Signed(d.NetFollowerCount)})";
             SubscribersText.Text = $"{d.SubscribersGained:N0} ({Signed(d.NetSubscriberCount)})";
             CtrText.Text = d.FeedClickThroughRate is { } ctr ? ctr.ToString("P1") : "—";

@@ -47,9 +47,9 @@
             <!-- Headline tiles (from the dashboard query, already loaded) -->
             <StackPanel Grid.Row="0">
                 <UniformGrid Rows="1" Columns="3" Margin="0,18,0,0">
-                    <StackPanel><TextBlock Text="{Binding Views}" Style="{StaticResource Big}" /><TextBlock Text="Views" Style="{StaticResource Label}" /></StackPanel>
-                    <StackPanel><TextBlock Text="{Binding Reads}" Style="{StaticResource Big}" /><TextBlock Text="Reads" Style="{StaticResource Label}" /></StackPanel>
-                    <StackPanel><TextBlock Text="{Binding ReadRatio, Converter={StaticResource Ratio}}" Style="{StaticResource Big}" /><TextBlock Text="Read ratio" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="ViewsText" Text="{Binding Views}" Style="{StaticResource Big}" /><TextBlock Text="Views" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="ReadsText" Text="{Binding Reads}" Style="{StaticResource Big}" /><TextBlock Text="Reads" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="RatioText" Text="{Binding ReadRatio, Converter={StaticResource Ratio}}" Style="{StaticResource Big}" /><TextBlock Text="Read ratio" Style="{StaticResource Label}" /></StackPanel>
                 </UniformGrid>
                 <UniformGrid Rows="1" Columns="3" Margin="0,16,0,0">
                     <StackPanel><TextBlock Text="{Binding Impressions}" Style="{StaticResource Big}" /><TextBlock Text="Impressions" Style="{StaticResource Label}" /></StackPanel>

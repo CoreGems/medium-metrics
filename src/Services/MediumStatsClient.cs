@@ -208,6 +208,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
     {
         var body = JsonSerializer.Serialize(new[] { new { operationName = opName, variables, query } });
         FetchResult res = await _postJson(GraphQlUrl, body, ct);
+        DumpDetailResponse(opName, res);
 
         if (res.Status is 401 or 403)
             throw new MediumStatsException($"Medium rejected the request (HTTP {res.Status}).", isAuthFailure: true);
@@ -281,6 +282,18 @@ public sealed class MediumStatsClient : IMediumStatsClient
             query = StatsQueryText,
         };
         return JsonSerializer.Serialize(new[] { op });
+    }
+
+    /// <summary>Debug: writes a per-story query response to detail-&lt;op&gt;.json beside the error dump.</summary>
+    private void DumpDetailResponse(string opName, FetchResult res)
+    {
+        if (string.IsNullOrEmpty(_errorDumpPath)) return;
+        try
+        {
+            var dir = Path.GetDirectoryName(_errorDumpPath)!;
+            File.WriteAllText(Path.Combine(dir, $"detail-{opName}.json"), $"STATUS {res.Status}\n{res.Body}");
+        }
+        catch { /* best-effort */ }
     }
 
     private async Task<JsonDocument> GetJsonAsync(string url, CancellationToken ct)
