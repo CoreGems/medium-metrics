@@ -38,6 +38,12 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private string? _errorMessage;
     [ObservableProperty] private string? _statusMessage;
 
+    /// <summary>True when a real Medium session is active (controls the header).</summary>
+    [ObservableProperty] private bool _isSignedIn;
+
+    /// <summary>Shown in the header when signed in, e.g. "Signed in as @handle".</summary>
+    [ObservableProperty] private string _accountText = "";
+
     public MainViewModel(IMediumStatsClient client, ReportStore store)
     {
         Client = client;
@@ -110,6 +116,8 @@ public partial class MainViewModel : ObservableObject
         TotalReads = snapshot.TotalReads;
         TotalImpressions = snapshot.TotalImpressions;
         TotalEarnings = snapshot.TotalEarningsUsd;
+        if (!string.IsNullOrEmpty(snapshot.AccountUsername))
+            AccountText = $"Signed in as @{snapshot.AccountUsername}";
         LatestTimestampText = snapshot.Timestamp == default
             ? "No data yet"
             : snapshot.Timestamp.ToLocalTime().ToString("g");

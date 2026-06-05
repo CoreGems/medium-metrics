@@ -57,6 +57,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
         return new StatsSnapshot
         {
             Followers = followers,
+            AccountUsername = username,
             Stories = stories,
             // Caller is the source of truth for "now"; default to a parse-stable value.
             Timestamp = default,

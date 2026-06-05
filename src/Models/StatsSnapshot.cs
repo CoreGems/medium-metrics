@@ -11,6 +11,9 @@ public sealed class StatsSnapshot
 
     public long Followers { get; set; }
 
+    /// <summary>Medium handle this snapshot was captured for (no leading @).</summary>
+    public string? AccountUsername { get; set; }
+
     public IReadOnlyList<StorySnapshot> Stories { get; set; } = new List<StorySnapshot>();
 
     public long TotalViews => Stories.Sum(s => s.Views);

@@ -53,8 +53,11 @@ public partial class App : Application
         var session = _sessions.Load();
         _vm = new MainViewModel(BuildClient(session), _store);
         _vm.AuthExpired += OnAuthExpired;
+        _vm.IsSignedIn = session is not null;
         if (session is null)
             _vm.StatusMessage = "Demo mode — showing sample data. Sign in to load your real Medium stats.";
+        else
+            _vm.AccountText = "Signed in";
 
         MainWindow = new MainWindow(this, _vm);
         MainWindow.Show();
@@ -86,6 +89,8 @@ public partial class App : Application
             }
 
             _vm.Client = BuildClient(session);
+            _vm.IsSignedIn = true;
+            _vm.AccountText = "Signed in";
             _vm.StatusMessage = "Signed in. Loading your stats…";
             _vm.ErrorMessage = null;
             Log.Info("Sign-in succeeded.");
@@ -109,6 +114,8 @@ public partial class App : Application
     {
         _sessions.Clear();
         _vm.Client = new FakeMediumStatsClient();
+        _vm.IsSignedIn = false;
+        _vm.AccountText = "";
         _vm.StatusMessage = "Signed out. Showing demo data — sign in to load your stats again.";
         Log.Info("Session cleared.");
     }

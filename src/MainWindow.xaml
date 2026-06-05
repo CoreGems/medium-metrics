@@ -7,6 +7,7 @@
     <Window.Resources>
         <conv:RatioToPercentConverter x:Key="Ratio" />
         <conv:StringToVisibilityConverter x:Key="StrVis" />
+        <conv:InverseBooleanToVisibilityConverter x:Key="NotBoolVis" />
         <BooleanToVisibilityConverter x:Key="BoolVis" />
         <Style TargetType="TextBlock" x:Key="Stat">
             <Setter Property="FontSize" Value="20" />
@@ -34,7 +35,11 @@
                     </TextBlock>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Sign in to Medium" Click="OnSignInClick" Padding="10,6" Margin="0,0,8,0" />
+                    <TextBlock Text="{Binding AccountText}" Foreground="#9ACD9A" VerticalAlignment="Center"
+                               Margin="0,0,10,0" FontSize="12"
+                               Visibility="{Binding IsSignedIn, Converter={StaticResource BoolVis}}" />
+                    <Button Content="Sign in to Medium" Click="OnSignInClick" Padding="10,6" Margin="0,0,8,0"
+                            Visibility="{Binding IsSignedIn, Converter={StaticResource NotBoolVis}}" />
                     <Button Content="Settings" Click="OnSettingsClick" Padding="10,6" Margin="0,0,8,0" />
                     <Button Content="Refresh" Command="{Binding RefreshCommand}"
                             Padding="14,6" FontWeight="SemiBold" />
