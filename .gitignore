@@ -153,5 +153,8 @@ obj/
 data/
 **/data/
 
+# Private drafts + reverse-engineering notes (kept local, not for the public repo)
+docs/private/
+
 # Publish output
 publish/
