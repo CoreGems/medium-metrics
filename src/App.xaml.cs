@@ -177,11 +177,16 @@ public partial class App : Application
         win.ShowDialog();
     }
 
-    /// <summary>Opens the per-story dashboard (Ctrl+double-click on a story row).</summary>
-    public void ShowStoryDashboard(StorySnapshot story, Window owner)
+    /// <summary>
+    /// Opens the per-story dashboard. The whole ordered list is passed so the
+    /// popup can page through stories (Prev/Next) in the list's current sort order.
+    /// </summary>
+    public void ShowStoryDashboard(IReadOnlyList<StorySnapshot> stories, int index, Window owner)
     {
-        var win = new StoryStatsWindow(this, story) { Owner = owner };
+        if (stories.Count == 0) return;
+        var win = new StoryStatsWindow(this, stories, index) { Owner = owner };
         win.Show();
+        win.Activate();
     }
 
     /// <summary>Fetches extended per-story stats for the dashboard.</summary>

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using System.Windows;
 using MediumMetrics.Models;
 using MediumMetrics.Services;
@@ -6,26 +7,92 @@ using MediumMetrics.Services;
 namespace MediumMetrics.Views;
 
 /// <summary>
-/// Per-story dashboard. Shows headline stats from the already-loaded snapshot and
-/// fetches the extended per-story detail (funnel, impact, referrers) on open.
+/// Per-story dashboard. Shows headline stats from the snapshot and fetches the
+/// extended per-story detail (funnel, impact, referrers) on open. Pages through
+/// the stories in the order they were given (the main list's sort order).
 /// </summary>
 public partial class StoryStatsWindow : Window
 {
     private readonly App _app;
-    private readonly StorySnapshot _story;
+    private readonly IReadOnlyList<StorySnapshot> _stories;
+    private int _index;
+    private StorySnapshot _story = null!;
+    private StoryDetail? _detail;
 
-    public StoryStatsWindow(App app, StorySnapshot story)
+    public StoryStatsWindow(App app, IReadOnlyList<StorySnapshot> stories, int index)
     {
         _app = app;
-        _story = story;
+        _stories = stories;
         InitializeComponent();
-        DataContext = story;
-        Loaded += async (_, _) => await LoadDetailAsync();
+        SourceInitialized += (_, _) => PositionBesideOwner();
+        Loaded += (_, _) => BringToTop();
+        ShowStory(index);
+    }
+
+    /// <summary>Places the popup beside the main window so the main window stays visible.</summary>
+    private void PositionBesideOwner()
+    {
+        double scrLeft = SystemParameters.VirtualScreenLeft;
+        double scrTop = SystemParameters.VirtualScreenTop;
+        double scrRight = scrLeft + SystemParameters.VirtualScreenWidth;
+        double scrBottom = scrTop + SystemParameters.VirtualScreenHeight;
+
+        if (Owner is not null)
+        {
+            double right = Owner.Left + Owner.ActualWidth + 8;
+            if (right + Width <= scrRight)        // room to the right of the owner
+            {
+                Left = right;
+                Top = Math.Min(Owner.Top, scrBottom - Height);
+                return;
+            }
+            // Otherwise cascade off the owner's corner so the owner stays partly visible.
+            Left = Math.Max(scrLeft, Math.Min(Owner.Left + 60, scrRight - Width));
+            Top = Math.Max(scrTop, Math.Min(Owner.Top + 60, scrBottom - Height));
+            return;
+        }
+
+        Left = scrLeft + (SystemParameters.VirtualScreenWidth - Width) / 2;
+        Top = scrTop + (SystemParameters.VirtualScreenHeight - Height) / 2;
+    }
+
+    /// <summary>Forces the window to the foreground without making it permanently topmost.</summary>
+    private void BringToTop()
+    {
+        if (!IsVisible) return;
+        Topmost = true;
+        Topmost = false;
+        Activate();
+    }
+
+    /// <summary>Switches to the story at <paramref name="index"/> and (re)loads its detail.</summary>
+    private void ShowStory(int index)
+    {
+        _index = Math.Clamp(index, 0, _stories.Count - 1);
+        _story = _stories[_index];
+        _detail = null;
+        DataContext = _story;
+
+        // Headline Views/Reads/ratio: set from the snapshot now; LoadDetail overrides from the funnel.
+        ViewsText.Text = _story.Views.ToString("N0");
+        ReadsText.Text = _story.Reads.ToString("N0");
+        RatioText.Text = _story.ReadRatio.ToString("P0");
+
+        // Clear the on-demand sections so stale data doesn't linger while loading.
+        FollowersText.Text = SubscribersText.Text = CtrText.Text = "—";
+        ReferrersGrid.ItemsSource = null;
+
+        PositionText.Text = $"{_index + 1} / {_stories.Count}";
+        PrevButton.IsEnabled = _index > 0;
+        NextButton.IsEnabled = _index < _stories.Count - 1;
+
+        _ = LoadDetailAsync();
     }
 
     private async Task LoadDetailAsync()
     {
-        if (string.IsNullOrEmpty(_story.StoryId))
+        var postId = _story.StoryId;
+        if (string.IsNullOrEmpty(postId))
         {
             DetailStatus.Text = "No story id.";
             return;
@@ -35,11 +102,14 @@ public partial class StoryStatsWindow : Window
         DetailStatus.Text = "Loading details…";
         try
         {
-            var d = await _app.FetchStoryDetailAsync(_story.StoryId);
+            var d = await _app.FetchStoryDetailAsync(postId);
+            if (!string.Equals(_story.StoryId, postId, StringComparison.Ordinal))
+                return; // navigated to another story while this was in flight
+
+            _detail = d;
 
             // The per-story funnel is the live, authoritative views/reads — refresh the
-            // headline tiles from it (the list-query values can lag). Guard on > 0 so a
-            // failed funnel doesn't blank good snapshot data.
+            // headline tiles from it (the list-query values can lag). Guard on > 0.
             if (d.ViewersCount > 0)
             {
                 ViewsText.Text = d.ViewersCount.ToString("N0");
@@ -56,12 +126,13 @@ public partial class StoryStatsWindow : Window
         }
         catch (MediumStatsException ex)
         {
-            DetailStatus.Text = ex.IsAuthFailure ? "Session expired — sign in again." : ex.Message;
+            if (_story.StoryId == postId)
+                DetailStatus.Text = ex.IsAuthFailure ? "Session expired — sign in again." : ex.Message;
         }
         catch (Exception ex)
         {
             Log.Error("Story detail fetch failed", ex);
-            DetailStatus.Text = "Could not load details — see log.";
+            if (_story.StoryId == postId) DetailStatus.Text = "Could not load details — see log.";
         }
         finally
         {
@@ -71,7 +142,56 @@ public partial class StoryStatsWindow : Window
 
     private static string Signed(long n) => n >= 0 ? $"+{n}" : n.ToString();
 
+    private void OnPrevClick(object sender, RoutedEventArgs e) => ShowStory(_index - 1);
+
+    private void OnNextClick(object sender, RoutedEventArgs e) => ShowStory(_index + 1);
+
     private async void OnRefreshClick(object sender, RoutedEventArgs e) => await LoadDetailAsync();
+
+    private void OnCopyClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(BuildClipboardText());
+            DetailStatus.Text = $"Copied to clipboard at {DateTime.Now:HH:mm:ss}.";
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Clipboard copy failed", ex);
+            DetailStatus.Text = "Couldn't copy to clipboard.";
+        }
+    }
+
+    /// <summary>Builds a plain-text summary of the current story for the clipboard.</summary>
+    private string BuildClipboardText()
+    {
+        var s = _story;
+        var d = _detail;
+        long views = d is { ViewersCount: > 0 } ? d.ViewersCount : s.Views;
+        long reads = d is { ViewersCount: > 0 } ? d.ReadersCount : s.Reads;
+        double ratio = views > 0 ? (double)reads / views : 0;
+
+        var sb = new StringBuilder();
+        sb.AppendLine(s.Title);
+        if (!string.IsNullOrEmpty(s.Url)) sb.AppendLine(s.Url);
+        if (s.PublishedAt is { } p) sb.AppendLine($"Published: {p.LocalDateTime:yyyy-MM-dd}");
+        sb.AppendLine($"Views: {views:N0}   Reads: {reads:N0}   Read ratio: {ratio:P0}");
+        sb.AppendLine($"Impressions: {s.Impressions:N0}   Claps: {s.Claps:N0}   Earnings: {s.EarningsUsd:C2}");
+
+        if (d is not null)
+        {
+            sb.AppendLine($"Followers gained: {d.FollowersGained:N0} (net {Signed(d.NetFollowerCount)})");
+            sb.AppendLine($"Subscribers gained: {d.SubscribersGained:N0} (net {Signed(d.NetSubscriberCount)})");
+            if (d.FeedClickThroughRate is { } ctr) sb.AppendLine($"Feed click-through: {ctr:P1}");
+            if (d.Referrers.Count > 0)
+            {
+                sb.AppendLine("Traffic sources:");
+                foreach (var r in d.Referrers)
+                    sb.AppendLine($"  {r.Source} ({r.Type}): {r.Count:N0}");
+            }
+        }
+        return sb.ToString();
+    }
 
     private void OnOpenClick(object sender, RoutedEventArgs e)
     {

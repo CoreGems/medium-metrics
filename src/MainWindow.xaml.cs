@@ -110,7 +110,11 @@ public partial class MainWindow : Window
             return;
         }
 
-        _app.ShowStoryDashboard(story, this);
+        // Pass the stories in the grid's current (sorted) order so the popup can page through them.
+        var ordered = StoriesGrid.Items.Cast<StorySnapshot>().ToList();
+        int index = ordered.IndexOf(story);
+        if (index < 0) { ordered = new List<StorySnapshot> { story }; index = 0; }
+        _app.ShowStoryDashboard(ordered, index, this);
     }
 
     private static void OpenInBrowser(StorySnapshot story)
