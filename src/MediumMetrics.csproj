@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <AssemblyTitle>Medium Metrics</AssemblyTitle>
+    <Product>Medium Metrics</Product>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>

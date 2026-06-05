@@ -9,6 +9,24 @@ Implementation plan for the Windows desktop app described in [APP_IDEA.md](APP_I
 - Ship a working vertical slice early (login → one fetch → one logged line), then widen.
 - Local-only, read-only, single user. No telemetry.
 
+## Status (v0.1.0)
+
+All milestones M0–M7 are implemented. 10 unit tests pass; the app runs from
+source (`start_app.ps1`) and as a single-file self-contained exe
+(`build_release.ps1`). Real-account verification of the exact stats JSON paths
+is still pending (see M3 / `docs/private/medium-api-notes.md`).
+
+| Milestone | Status |
+|-----------|--------|
+| M0 Scaffold | ✅ |
+| M1 Data models | ✅ |
+| M2 WebView2 login + DPAPI | ✅ |
+| M3 Stats client (isolated) | ✅ code; ⏳ verify against real account |
+| M4 Persistence | ✅ |
+| M5 UI list + history + Refresh | ✅ |
+| M6 Robustness & UX polish | ✅ |
+| M7 Packaging & release | ✅ |
+
 ---
 
 ## Milestone 0 — Project scaffold

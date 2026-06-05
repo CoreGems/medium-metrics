@@ -18,6 +18,9 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Swappable so we can start in demo mode and switch to a real session.</summary>
     public IMediumStatsClient Client { get; set; }
 
+    /// <summary>Raised when a refresh fails because the Medium session is no longer valid.</summary>
+    public event EventHandler? AuthExpired;
+
     public ObservableCollection<StorySnapshot> Stories { get; } = new();
     public ObservableCollection<HistoryRow> History { get; } = new();
 
@@ -73,6 +76,8 @@ public partial class MainViewModel : ObservableObject
                 ? "Session expired — please sign in to Medium again."
                 : ex.Message;
             StatusMessage = null;
+            if (ex.IsAuthFailure)
+                AuthExpired?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

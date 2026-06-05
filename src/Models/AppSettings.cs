@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json.Serialization;
 
 namespace MediumMetrics.Models;
 
@@ -20,15 +21,35 @@ public sealed class AppSettings
     /// </summary>
     public string DataDirectory { get; set; } = DefaultDataDirectory();
 
-    // Derived file paths — not serialized as the source of truth, but convenient.
-    public string ReportCsvPath => Path.Combine(DataDirectory, "report.csv");
-    public string LatestJsonPath => Path.Combine(DataDirectory, "latest.json");
-    public string SessionPath => Path.Combine(DataDirectory, "session.bin");
-    public string SettingsPath => Path.Combine(DataDirectory, "settings.json");
-    public string LogPath => Path.Combine(DataDirectory, "app.log");
+    /// <summary>Main window placement, persisted across runs. Null until first save.</summary>
+    public WindowBounds? Window { get; set; }
+
+    // Derived file paths — not serialized, just convenient.
+    [JsonIgnore] public string ReportCsvPath => Path.Combine(DataDirectory, "report.csv");
+    [JsonIgnore] public string LatestJsonPath => Path.Combine(DataDirectory, "latest.json");
+    [JsonIgnore] public string SessionPath => Path.Combine(DataDirectory, "session.bin");
+    [JsonIgnore] public string LogPath => Path.Combine(DataDirectory, "app.log");
+
+    /// <summary>
+    /// settings.json always lives in the default folder so it can be found before
+    /// any relocated <see cref="DataDirectory"/> is known.
+    /// </summary>
+    [JsonIgnore]
+    public static string SettingsPath =>
+        Path.Combine(DefaultDataDirectory(), "settings.json");
 
     public static string DefaultDataDirectory() =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MediumMetrics");
+}
+
+/// <summary>Persisted main-window placement.</summary>
+public sealed class WindowBounds
+{
+    public double Left { get; set; }
+    public double Top { get; set; }
+    public double Width { get; set; }
+    public double Height { get; set; }
+    public bool Maximized { get; set; }
 }
