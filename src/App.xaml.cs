@@ -20,6 +20,7 @@ public partial class App : Application
     private SessionManager _sessions = null!;
     private ReportStore _store = null!;
     private MainViewModel _vm = null!;
+    private MediumBrowser? _browser;
 
     public AppSettings Settings => _settings;
     public bool HasSession => _sessions.HasSession;
@@ -27,6 +28,10 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // A hidden helper browser window stays open for the app's lifetime, so
+        // shut down when the MAIN window closes (not when the last window closes).
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
 
         _settings = SettingsStore.Load();
         Directory.CreateDirectory(_settings.DataDirectory);
@@ -55,10 +60,13 @@ public partial class App : Application
         MainWindow.Show();
     }
 
-    private IMediumStatsClient BuildClient(MediumSession? session) =>
-        session is not null
-            ? new MediumStatsClient(session, _settings.LatestJsonPath + ".error")
-            : new FakeMediumStatsClient();
+    private IMediumStatsClient BuildClient(MediumSession? session)
+    {
+        if (session is null) return new FakeMediumStatsClient();
+        // Issue requests through a real (hidden) browser so Cloudflare clearance applies.
+        _browser ??= new MediumBrowser(System.IO.Path.Combine(_settings.DataDirectory, "webview2"));
+        return new MediumStatsClient(_browser.FetchAsync, _browser.PostJsonAsync, _settings.LatestJsonPath + ".error");
+    }
 
     /// <summary>
     /// Runs the interactive Medium login. On success, swaps the view model's
@@ -78,9 +86,12 @@ public partial class App : Application
             }
 
             _vm.Client = BuildClient(session);
-            _vm.StatusMessage = "Signed in. Click Refresh to load your stats.";
+            _vm.StatusMessage = "Signed in. Loading your stats…";
             _vm.ErrorMessage = null;
             Log.Info("Sign-in succeeded.");
+            // Reflect the signed-in state immediately by pulling stats now.
+            if (_vm.RefreshCommand.CanExecute(null))
+                _ = _vm.RefreshCommand.ExecuteAsync(null);
             return true;
         }
         catch (Exception ex)
@@ -100,6 +111,36 @@ public partial class App : Application
         _vm.Client = new FakeMediumStatsClient();
         _vm.StatusMessage = "Signed out. Showing demo data — sign in to load your stats again.";
         Log.Info("Session cleared.");
+    }
+
+    /// <summary>
+    /// Debug: capture the GraphQL traffic the stats page makes and save it to
+    /// graphql-capture.json for inspection (used to wire the real stats query).
+    /// </summary>
+    public async Task CaptureStatsDebugAsync()
+    {
+        try
+        {
+            if (!HasSession)
+            {
+                MessageBox.Show("Sign in first, then capture.", "Not signed in",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            _browser ??= new MediumBrowser(Path.Combine(_settings.DataDirectory, "webview2"));
+            _vm.StatusMessage = "Capturing stats traffic… (about 10s)";
+            var json = await _browser.CaptureStatsAsync();
+            var path = Path.Combine(_settings.DataDirectory, "graphql-capture.json");
+            await File.WriteAllTextAsync(path, json);
+            Log.Info($"Captured GraphQL traffic ({json.Length} chars) to {path}");
+            _vm.StatusMessage = $"Saved capture to {path}";
+            OpenDataFolder();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Stats capture failed", ex);
+            MessageBox.Show(ex.Message, "Capture failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     /// <summary>Opens the data folder in Explorer.</summary>
@@ -126,16 +167,20 @@ public partial class App : Application
     /// <summary>Persists window placement and any settings on shutdown.</summary>
     public void SaveSettings() => SettingsStore.Save(_settings);
 
+    protected override void OnExit(ExitEventArgs e)
+    {
+        _browser?.Dispose();
+        Log.Info("App exiting.");
+        base.OnExit(e);
+    }
+
     private void OnAuthExpired(object? sender, EventArgs e)
     {
-        // The stored cookie is no longer valid — clear it and offer to re-sign-in.
-        _sessions.Clear();
-        var ask = MessageBox.Show(
-            "Your Medium session has expired. Sign in again now?",
-            "Session expired", MessageBoxButton.YesNo, MessageBoxImage.Question);
-        if (ask == MessageBoxResult.Yes && MainWindow is not null)
-            SignIn(MainWindow);
-        else
-            _vm.Client = new FakeMediumStatsClient();
+        // Do NOT auto-clear the stored session here: the captured login is usually
+        // still valid in the browser, and a rejected HTTP request more often means
+        // a header/endpoint problem than a truly expired cookie. Wiping it would
+        // just lose the session and the diagnostic trail. The error banner already
+        // tells the user; they can re-sign-in or clear the session from Settings.
+        Log.Info("Refresh reported an auth failure; see latest.json.error for diagnostics.");
     }
 }

@@ -40,6 +40,8 @@ public partial class SettingsWindow : Window
 
     private void OnOpenFolderClick(object sender, RoutedEventArgs e) => _app.OpenDataFolder();
 
+    private async void OnCaptureClick(object sender, RoutedEventArgs e) => await _app.CaptureStatsDebugAsync();
+
     private void OnOpenLogClick(object sender, RoutedEventArgs e)
     {
         var log = _app.Settings.LogPath;

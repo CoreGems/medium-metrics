@@ -101,7 +101,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         Stories.Clear();
-        foreach (var s in snapshot.Stories)
+        foreach (var s in snapshot.Stories.OrderByDescending(s => s.Views))
             Stories.Add(s);
 
         Followers = snapshot.Followers;

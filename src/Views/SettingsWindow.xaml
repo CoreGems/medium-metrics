@@ -15,7 +15,8 @@
         <TextBlock x:Name="DataFolderText" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8" />
         <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
             <Button Content="Open data folder" Click="OnOpenFolderClick" Padding="12,6" Margin="0,0,8,0" />
-            <Button Content="Open log file" Click="OnOpenLogClick" Padding="12,6" />
+            <Button Content="Open log file" Click="OnOpenLogClick" Padding="12,6" Margin="0,0,8,0" />
+            <Button Content="Capture stats (debug)" Click="OnCaptureClick" Padding="12,6" />
         </StackPanel>
 
         <TextBlock TextWrapping="Wrap" Foreground="#888" FontSize="11">
