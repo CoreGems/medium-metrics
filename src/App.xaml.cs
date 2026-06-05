@@ -139,8 +139,14 @@ public partial class App : Application
             var json = await _browser.CaptureStatsAsync();
             var path = Path.Combine(_settings.DataDirectory, "graphql-capture.json");
             await File.WriteAllTextAsync(path, json);
-            Log.Info($"Captured GraphQL traffic ({json.Length} chars) to {path}");
-            _vm.StatusMessage = $"Saved capture to {path}";
+
+            // Also dump /me?format=json so we can locate the followers field.
+            var me = await _browser.FetchAsync("https://medium.com/me?format=json");
+            var mePath = Path.Combine(_settings.DataDirectory, "me-capture.json");
+            await File.WriteAllTextAsync(mePath, me.Body);
+
+            Log.Info($"Captured GraphQL ({json.Length} chars) and /me ({me.Body.Length} chars).");
+            _vm.StatusMessage = $"Saved captures to {_settings.DataDirectory}";
             OpenDataFolder();
         }
         catch (Exception ex)

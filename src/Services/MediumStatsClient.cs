@@ -70,17 +70,26 @@ public sealed class MediumStatsClient : IMediumStatsClient
         using var doc = await GetJsonAsync(MeUrl, ct);
         var root = doc.RootElement;
 
-        long followers = 0;
-        if (TryGetPath(root, out var count, "payload", "user", "socialStats", "usersFollowedByCount")
-            && count.TryGetInt64(out var f))
-            followers = f;
-
         string username = "";
         if (TryGetPath(root, out var u, "payload", "user", "username") && u.ValueKind == JsonValueKind.String)
             username = u.GetString() ?? "";
-
         if (username.Length == 0)
             throw new MediumStatsException("Could not determine your Medium username from /me.");
+
+        string userId = "";
+        if (TryGetPath(root, out var uid, "payload", "user", "userId") && uid.ValueKind == JsonValueKind.String)
+            userId = uid.GetString() ?? "";
+
+        // Followers live in the normalized SocialStats map, keyed by user id:
+        //   payload.references.SocialStats[userId].usersFollowedByCount
+        long followers = 0;
+        if (userId.Length > 0
+            && TryGetPath(root, out var socialStats, "payload", "references", "SocialStats")
+            && socialStats.ValueKind == JsonValueKind.Object
+            && socialStats.TryGetProperty(userId, out var stat))
+        {
+            followers = GetLong(stat, "usersFollowedByCount");
+        }
 
         return (followers, username);
     }

@@ -4,10 +4,10 @@ namespace MediumMetrics.Tests;
 
 public class GraphQlParsingTests
 {
-    // /me?format=json still returns JSON (with the anti-hijack prefix).
+    // /me?format=json: followers live in references.SocialStats[userId].usersFollowedByCount.
     private const string MeJson =
-        "])}while(1);</x>{\"payload\":{\"user\":{\"username\":\"alexbuzunov\"," +
-        "\"socialStats\":{\"usersFollowedByCount\":12}}}}";
+        "])}while(1);</x>{\"payload\":{\"user\":{\"username\":\"alexbuzunov\",\"userId\":\"u1\"}," +
+        "\"references\":{\"SocialStats\":{\"u1\":{\"usersFollowedCount\":90,\"usersFollowedByCount\":12}}}}}";
 
     private static Func<string, CancellationToken, Task<FetchResult>> Get(string body, int status = 200)
         => (_, _) => Task.FromResult(new FetchResult(status, body));

@@ -29,7 +29,10 @@ e.g. `])}while(1);</x>`). Strip everything up to the first `{` before parsing.
 - **GET** `https://medium.com/me?format=json` (via the browser; returns JSON)
 - Path to fields (under the anti-hijack-stripped root):
   - `payload.user.username` — account handle (needed for the GraphQL query)
-  - `payload.user.socialStats.usersFollowedByCount` — **followers**
+  - `payload.user.userId` — the key into the normalized SocialStats map
+  - **followers** = `payload.references.SocialStats[userId].usersFollowedByCount`
+    (NOT `payload.user.socialStats` — that path does not exist). `usersFollowedCount`
+    is the inverse (accounts *you* follow). Confirmed 309 followers on the real account.
 
 ## Per-story stats  (NEW — GraphQL, confirmed 2026-06-05)
 `/me/stats?format=json` is **dead** — it now returns the SPA HTML page. The stats
