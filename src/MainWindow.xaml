@@ -93,13 +93,13 @@
 
             <DockPanel Grid.Row="0">
                 <TextBlock DockPanel.Dock="Top" Text="Stories" FontWeight="Bold" Margin="2,0,0,4" />
-                <DataGrid ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
+                <DataGrid x:Name="StoriesGrid" ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
                           IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                           CanUserAddRows="False" MouseDoubleClick="OnStoryDoubleClick"
                           ToolTip="Double-click: open the article · Ctrl+double-click: story dashboard">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
-                        <DataGridTextColumn Header="Published" Binding="{Binding PublishedAt.LocalDateTime, StringFormat=yyyy-MM-dd}" Width="95" />
+                        <DataGridTextColumn Header="Published" SortMemberPath="PublishedAt" Binding="{Binding PublishedAt.LocalDateTime, StringFormat=yyyy-MM-dd}" Width="95" />
                         <DataGridTextColumn Header="Views" Binding="{Binding Views}" Width="80" />
                         <DataGridTextColumn Header="Reads" Binding="{Binding Reads}" Width="80" />
                         <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />

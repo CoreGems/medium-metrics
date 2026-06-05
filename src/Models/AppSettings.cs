@@ -24,6 +24,10 @@ public sealed class AppSettings
     /// <summary>Main window placement, persisted across runs. Null until first save.</summary>
     public WindowBounds? Window { get; set; }
 
+    /// <summary>Persisted sort for the stories list: the column's sort path + direction.</summary>
+    public string? StoriesSortColumn { get; set; } = "Views";
+    public bool StoriesSortDescending { get; set; } = true;
+
     // Derived file paths — not serialized, just convenient.
     [JsonIgnore] public string ReportCsvPath => Path.Combine(DataDirectory, "report.csv");
     [JsonIgnore] public string LatestJsonPath => Path.Combine(DataDirectory, "latest.json");

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
@@ -23,6 +24,36 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         ApplyBounds(app.Settings.Window);
+        Loaded += (_, _) => ApplySavedSort();
+    }
+
+    /// <summary>Restores the persisted stories-list sort (column + direction) and its header arrow.</summary>
+    private void ApplySavedSort()
+    {
+        var column = _app.Settings.StoriesSortColumn;
+        if (string.IsNullOrEmpty(column)) return;
+
+        var dir = _app.Settings.StoriesSortDescending ? ListSortDirection.Descending : ListSortDirection.Ascending;
+        StoriesGrid.Items.SortDescriptions.Clear();
+        StoriesGrid.Items.SortDescriptions.Add(new SortDescription(column, dir));
+        foreach (var c in StoriesGrid.Columns)
+            c.SortDirection = string.Equals(c.SortMemberPath, column, StringComparison.Ordinal) ? dir : null;
+        StoriesGrid.Items.Refresh();
+    }
+
+    /// <summary>Captures the current stories-list sort into settings (for restart persistence).</summary>
+    private void CaptureSort()
+    {
+        var sorts = StoriesGrid.Items.SortDescriptions;
+        if (sorts.Count > 0)
+        {
+            _app.Settings.StoriesSortColumn = sorts[0].PropertyName;
+            _app.Settings.StoriesSortDescending = sorts[0].Direction == ListSortDirection.Descending;
+        }
+        else
+        {
+            _app.Settings.StoriesSortColumn = null;
+        }
     }
 
     private void ApplyBounds(WindowBounds? b)
@@ -54,6 +85,7 @@ public partial class MainWindow : Window
             Height = r.Height,
             Maximized = WindowState == WindowState.Maximized,
         };
+        CaptureSort();
         _app.SaveSettings();
         base.OnClosing(e);
     }
