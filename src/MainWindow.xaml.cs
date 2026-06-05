@@ -59,11 +59,21 @@ public partial class MainWindow : Window
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _app.ShowSettings(this);
 
-    /// <summary>Opens the double-clicked story in the default browser.</summary>
+    /// <summary>
+    /// Double-click a story to open the article in the browser; Ctrl+double-click
+    /// to open the in-app per-story dashboard.
+    /// </summary>
     private void OnStoryDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         if ((sender as System.Windows.Controls.DataGrid)?.SelectedItem is not StorySnapshot story)
             return;
+
+        if (System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control))
+        {
+            _app.ShowStoryDashboard(story, this);
+            return;
+        }
+
         if (!Uri.TryCreate(story.Url, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             return; // nothing to open / not a web URL

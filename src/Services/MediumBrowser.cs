@@ -138,6 +138,20 @@ public sealed class MediumBrowser : IDisposable
         return JsonSerializer.Deserialize<string>(json) ?? "[]";
     }
 
+    /// <summary>
+    /// Navigates to a single story's stats detail page and returns the GraphQL
+    /// traffic it makes (used to discover the member/non-member view breakdown).
+    /// </summary>
+    public async Task<string> CaptureStoryAsync(string postId, CancellationToken ct = default)
+    {
+        await EnsureReadyAsync();
+        await _web!.CoreWebView2.ExecuteScriptAsync("window.__mm_captures = []");
+        await NavigateAsync($"https://medium.com/me/stats/post/{postId}");
+        await Task.Delay(TimeSpan.FromSeconds(8), ct);
+        var json = await _web.CoreWebView2.ExecuteScriptAsync("JSON.stringify(window.__mm_captures || [])");
+        return JsonSerializer.Deserialize<string>(json) ?? "[]";
+    }
+
     // Captures fetch + XHR traffic whose URL contains "graphql" into window.__mm_captures.
     private const string InterceptorScript = @"(function(){
   if (window.__mm_installed) return; window.__mm_installed = true;

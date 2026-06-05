@@ -177,6 +177,33 @@ public partial class App : Application
         win.ShowDialog();
     }
 
+    /// <summary>Opens the per-story dashboard (Ctrl+double-click on a story row).</summary>
+    public void ShowStoryDashboard(StorySnapshot story, Window owner)
+    {
+        var win = new StoryStatsWindow(this, story) { Owner = owner };
+        win.Show();
+    }
+
+    /// <summary>
+    /// Debug: capture the GraphQL traffic a single story's stats page makes and
+    /// save it to story-capture.json (used to wire member/non-member views).
+    /// </summary>
+    public async Task CaptureStoryDebugAsync(string postId)
+    {
+        if (!HasSession)
+        {
+            MessageBox.Show("Sign in first, then load detailed stats.", "Not signed in",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        _browser ??= new MediumBrowser(Path.Combine(_settings.DataDirectory, "webview2"));
+        var json = await _browser.CaptureStoryAsync(postId);
+        var path = Path.Combine(_settings.DataDirectory, "story-capture.json");
+        await File.WriteAllTextAsync(path, json);
+        Log.Info($"Captured story {postId} GraphQL ({json.Length} chars) to {path}");
+        OpenDataFolder();
+    }
+
     /// <summary>Persists window placement and any settings on shutdown.</summary>
     public void SaveSettings() => SettingsStore.Save(_settings);
 
