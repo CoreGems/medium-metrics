@@ -20,6 +20,9 @@ public sealed class StorySnapshot
     /// <summary>Times the story was shown (Medium calls these "impressions"/presentations).</summary>
     public long Impressions { get; set; }
 
+    /// <summary>Total claps (from the Post.clapCount field).</summary>
+    public long Claps { get; set; }
+
     /// <summary>Views from logged-in Medium members (from the per-story detail; null if not loaded).</summary>
     public long? MemberViews { get; set; }
 

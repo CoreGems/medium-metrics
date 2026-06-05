@@ -14,6 +14,9 @@ public interface IMediumStatsClient
     /// on auth failure or unparseable responses.
     /// </summary>
     Task<StatsSnapshot> FetchAsync(CancellationToken ct = default);
+
+    /// <summary>Fetches extended per-story stats (funnel, impact, referrers) for the dashboard.</summary>
+    Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default);
 }
 
 /// <summary>Raised when stats cannot be fetched or parsed.</summary>

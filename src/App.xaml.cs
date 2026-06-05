@@ -184,6 +184,10 @@ public partial class App : Application
         win.Show();
     }
 
+    /// <summary>Fetches extended per-story stats for the dashboard.</summary>
+    public Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
+        => _vm.Client.FetchStoryDetailAsync(postId, ct);
+
     /// <summary>
     /// Debug: capture the GraphQL traffic a single story's stats page makes and
     /// save it to story-capture.json (used to wire member/non-member views).

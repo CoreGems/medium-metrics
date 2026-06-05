@@ -25,7 +25,8 @@ public sealed class MediumStatsClient : IMediumStatsClient
         "  user(username: $username) {\n" +
         "    id\n" +
         "    postsConnection(first: $first, after: $after, orderBy: $orderBy, filter: $filter) {\n" +
-        "      edges { node { id title mediumUrl firstPublishedAt totalStats { presentations views reads } " +
+        "      edges { node { id title mediumUrl firstPublishedAt clapCount " +
+        "totalStats { presentations views reads } " +
         "earnings { total { currencyCode units nanos } } } }\n" +
         "      pageInfo { endCursor hasNextPage }\n" +
         "    }\n" +
@@ -153,6 +154,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
                             Views = GetLong(ts, "views"),
                             Reads = GetLong(ts, "reads"),
                             Impressions = GetLong(ts, "presentations"),
+                            Claps = GetLong(node, "clapCount"),
                             EarningsUsd = GetEarnings(node),
                         });
                     }
@@ -168,6 +170,97 @@ public sealed class MediumStatsClient : IMediumStatsClient
             }
         }
         return stories;
+    }
+
+    private const string FunnelQuery =
+        "query StatsPostFunnelQuery($postStatsTotalBundleInput: PostStatsTotalBundleInput!) {" +
+        " postStatsTotalBundle(postStatsTotalBundleInput: $postStatsTotalBundleInput) {" +
+        " readersCount viewersCount feedClickThroughRate presentationCount } }";
+
+    private const string ImpactQuery =
+        "query StatsPostImpactQuery($postStatsTotalBundleInput: PostStatsTotalBundleInput!) {" +
+        " postStatsTotalBundle(postStatsTotalBundleInput: $postStatsTotalBundleInput) {" +
+        " followersGained followersLost netFollowerCount netSubscriberCount subscribersGained subscribersLost } }";
+
+    private const string ReferrersQuery =
+        "query StatsPostReferrersContainerQuery($postId: ID!) {" +
+        " post(id: $postId) { id referrers { totalCount type sourceIdentifier" +
+        " search { domain } site { href title } } } }";
+
+    /// <summary>
+    /// Fetches extended per-story stats by replaying the funnel, impact and
+    /// referrers GraphQL queries as one batched POST. Fields are merged by
+    /// presence, so result ordering doesn't matter.
+    /// </summary>
+    public async Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
+    {
+        var bundleVars = new { postStatsTotalBundleInput = new { postId } };
+        var batch = JsonSerializer.Serialize(new object[]
+        {
+            new { operationName = "StatsPostFunnelQuery",    variables = bundleVars,                query = FunnelQuery },
+            new { operationName = "StatsPostImpactQuery",     variables = bundleVars,                query = ImpactQuery },
+            new { operationName = "StatsPostReferrersContainerQuery", variables = new { postId },    query = ReferrersQuery },
+        });
+
+        FetchResult res = await _postJson(GraphQlUrl, batch, ct);
+        if (res.Status is 401 or 403)
+            throw new MediumStatsException($"Medium rejected the request (HTTP {res.Status}).", isAuthFailure: true);
+        if (res.Status is < 200 or >= 400)
+        {
+            DumpDiagnostics(GraphQlUrl, res);
+            throw new MediumStatsException($"Medium GraphQL returned HTTP {res.Status}.");
+        }
+
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(res.Body); }
+        catch (JsonException ex)
+        {
+            DumpDiagnostics(GraphQlUrl, res);
+            throw new MediumStatsException("Could not parse Medium story-detail response.", inner: ex);
+        }
+
+        var detail = new StoryDetail();
+        using (doc)
+        {
+            if (doc.RootElement.ValueKind != JsonValueKind.Array) return detail;
+            foreach (var entry in doc.RootElement.EnumerateArray())
+            {
+                if (!entry.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+                    continue;
+
+                // Funnel + Impact both return postStatsTotalBundle; merge by field presence.
+                if (data.TryGetProperty("postStatsTotalBundle", out var b) && b.ValueKind == JsonValueKind.Object)
+                {
+                    if (b.TryGetProperty("viewersCount", out _)) detail.ViewersCount = GetLong(b, "viewersCount");
+                    if (b.TryGetProperty("readersCount", out _)) detail.ReadersCount = GetLong(b, "readersCount");
+                    if (b.TryGetProperty("feedClickThroughRate", out var ctr) && ctr.ValueKind == JsonValueKind.Number)
+                        detail.FeedClickThroughRate = ctr.GetDouble();
+                    if (b.TryGetProperty("followersGained", out _)) detail.FollowersGained = GetLong(b, "followersGained");
+                    if (b.TryGetProperty("followersLost", out _)) detail.FollowersLost = GetLong(b, "followersLost");
+                    if (b.TryGetProperty("netFollowerCount", out _)) detail.NetFollowerCount = GetLong(b, "netFollowerCount");
+                    if (b.TryGetProperty("subscribersGained", out _)) detail.SubscribersGained = GetLong(b, "subscribersGained");
+                    if (b.TryGetProperty("netSubscriberCount", out _)) detail.NetSubscriberCount = GetLong(b, "netSubscriberCount");
+                }
+
+                // Referrers
+                if (TryGetPath(data, out var refs, "post", "referrers") && refs.ValueKind == JsonValueKind.Array)
+                {
+                    var list = new List<Referrer>();
+                    foreach (var r in refs.EnumerateArray())
+                    {
+                        list.Add(new Referrer
+                        {
+                            Count = GetLong(r, "totalCount"),
+                            Type = GetString(r, "type") ?? "",
+                            Source = GetString(r, "sourceIdentifier")
+                                     ?? (TryGetPath(r, out var d, "search", "domain") ? d.GetString() ?? "" : ""),
+                        });
+                    }
+                    detail.Referrers = list.OrderByDescending(x => x.Count).ToList();
+                }
+            }
+        }
+        return detail;
     }
 
     /// <summary>Builds the batched GraphQL request body for one page of story stats.</summary>

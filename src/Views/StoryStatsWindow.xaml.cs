@@ -6,8 +6,8 @@ using MediumMetrics.Services;
 namespace MediumMetrics.Views;
 
 /// <summary>
-/// Per-story dashboard. Shows the stats we already have for one story and can
-/// fetch the per-story detail (member/non-member views) on demand.
+/// Per-story dashboard. Shows headline stats from the already-loaded snapshot and
+/// fetches the extended per-story detail (funnel, impact, referrers) on open.
 /// </summary>
 public partial class StoryStatsWindow : Window
 {
@@ -20,9 +20,47 @@ public partial class StoryStatsWindow : Window
         _story = story;
         InitializeComponent();
         DataContext = story;
-        if (story.MemberViews is { } mv) MemberViewsText.Text = mv.ToString("N0");
-        if (story.NonMemberViews is { } nmv) NonMemberViewsText.Text = nmv.ToString("N0");
+        Loaded += async (_, _) => await LoadDetailAsync();
     }
+
+    private async Task LoadDetailAsync()
+    {
+        if (string.IsNullOrEmpty(_story.StoryId))
+        {
+            DetailStatus.Text = "No story id.";
+            return;
+        }
+
+        RefreshButton.IsEnabled = false;
+        DetailStatus.Text = "Loading details…";
+        try
+        {
+            var d = await _app.FetchStoryDetailAsync(_story.StoryId);
+
+            FollowersText.Text = $"{d.FollowersGained:N0} ({Signed(d.NetFollowerCount)})";
+            SubscribersText.Text = $"{d.SubscribersGained:N0} ({Signed(d.NetSubscriberCount)})";
+            CtrText.Text = d.FeedClickThroughRate is { } ctr ? ctr.ToString("P1") : "—";
+            ReferrersGrid.ItemsSource = d.Referrers;
+            DetailStatus.Text = $"Viewers {d.ViewersCount:N0} · Readers {d.ReadersCount:N0}";
+        }
+        catch (MediumStatsException ex)
+        {
+            DetailStatus.Text = ex.IsAuthFailure ? "Session expired — sign in again." : ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Story detail fetch failed", ex);
+            DetailStatus.Text = "Could not load details — see log.";
+        }
+        finally
+        {
+            RefreshButton.IsEnabled = true;
+        }
+    }
+
+    private static string Signed(long n) => n >= 0 ? $"+{n}" : n.ToString();
+
+    private async void OnRefreshClick(object sender, RoutedEventArgs e) => await LoadDetailAsync();
 
     private void OnOpenClick(object sender, RoutedEventArgs e)
     {
@@ -31,26 +69,6 @@ public partial class StoryStatsWindow : Window
         {
             try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
             catch (Exception ex) { Log.Error("Failed to open story URL", ex); }
-        }
-    }
-
-    private async void OnLoadDetailsClick(object sender, RoutedEventArgs e)
-    {
-        LoadDetailsButton.IsEnabled = false;
-        DetailStatus.Text = "Fetching…";
-        try
-        {
-            await _app.CaptureStoryDebugAsync(_story.StoryId);
-            DetailStatus.Text = "Saved story-capture.json for analysis.";
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Load detailed stats failed", ex);
-            DetailStatus.Text = "Failed — see log.";
-        }
-        finally
-        {
-            LoadDetailsButton.IsEnabled = true;
         }
     }
 

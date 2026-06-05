@@ -32,4 +32,22 @@ public sealed class FakeMediumStatsClient : IMediumStatsClient
 
         return Task.FromResult(snapshot);
     }
+
+    public Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
+        => Task.FromResult(new StoryDetail
+        {
+            ViewersCount = 933,
+            ReadersCount = 410,
+            FeedClickThroughRate = 0.12,
+            FollowersGained = 7,
+            NetFollowerCount = 6,
+            SubscribersGained = 2,
+            NetSubscriberCount = 2,
+            Referrers = new List<Referrer>
+            {
+                new() { Source = "google.com", Type = "SEARCH", Count = 612 },
+                new() { Source = "direct", Type = "DIRECT", Count = 188 },
+                new() { Source = "medium.com", Type = "INTERNAL", Count = 73 },
+            },
+        });
 }
