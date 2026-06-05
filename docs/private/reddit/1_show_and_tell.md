@@ -17,8 +17,8 @@
 A little while back I asked here whether it was worth building a small desktop app to keep a *history* of my Medium stats, since Medium's own page only shows current numbers. Enough of you said "yeah, I'd use that" — so I built a first version. Sharing how it works and what I learned.
 
 **What it does**
-- Logs readership stats for my own Medium account: followers, and per-story views / reads / read-ratio / claps.
-- Shows the latest snapshot as a list.
+- Logs readership stats for my own Medium account: followers, and per-story views / reads / read-ratio / impressions / earnings.
+- Shows the latest snapshot as a list (sorted by views; double-click a story to open it).
 - A **Refresh** button appends **one timestamped line** to an append-only history log (`report.csv`), so I can scroll back and see how things grew week to week.
 - 100% local. No cloud, no account, no third-party analytics. The data never leaves my machine.
 
@@ -30,7 +30,7 @@ Medium has no public personal-stats API, so:
 **The bug that taught me something**
 My first cut treated "the `sid`/`uid` cookies exist → user is logged in." Turns out **Medium sets those cookies for anonymous visitors too**, so the login window would instantly "capture" a useless anonymous session and close itself — looked like the Sign-in button did nothing. Fix was to only capture once the webview actually lands on the authenticated stats page (logged-out users get redirected to `/m/signin`).
 
-**Stack:** C# / .NET 8, WPF, WebView2, `System.Text.Json`, CSV + SQLite, DPAPI. ~25 small files, a handful of unit tests.
+**Stack:** C# / .NET 8, WPF, a hidden WebView2 as the authenticated fetch engine (Medium is behind Cloudflare), `System.Text.Json`, append-only CSV for history, DPAPI for the session cookie. A handful of unit tests.
 
 **Honest caveats**
 - These are *undocumented* endpoints, so Medium could change them and break it. I isolated all of that behind one class so it's a one-file patch, and it dumps the raw response on a parse failure to make fixing it fast.
