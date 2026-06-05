@@ -1,5 +1,8 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using MediumMetrics.Models;
 using MediumMetrics.Services;
 using MediumMetrics.ViewModels;
@@ -61,14 +64,15 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// Double-click a story to open the article in the browser; Ctrl+double-click
-    /// to open the in-app per-story dashboard.
+    /// to open the in-app per-story dashboard. Resolves the row under the cursor
+    /// (not SelectedItem) because Ctrl+click toggles selection and can clear it.
     /// </summary>
-    private void OnStoryDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void OnStoryDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if ((sender as System.Windows.Controls.DataGrid)?.SelectedItem is not StorySnapshot story)
+        if (RowItemUnderMouse(e.OriginalSource as DependencyObject) is not StorySnapshot story)
             return;
 
-        if (System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control))
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             _app.ShowStoryDashboard(story, this);
             return;
@@ -86,5 +90,13 @@ public partial class MainWindow : Window
         {
             Log.Error("Failed to open story URL", ex);
         }
+    }
+
+    /// <summary>Walks up the visual tree from the click target to the data item of its row.</summary>
+    private static object? RowItemUnderMouse(DependencyObject? source)
+    {
+        while (source is not null and not DataGridRow)
+            source = VisualTreeHelper.GetParent(source);
+        return (source as DataGridRow)?.Item;
     }
 }
