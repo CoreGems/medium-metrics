@@ -72,15 +72,23 @@ public class GraphQlParsingTests
     [Fact]
     public async Task FetchStoryDetailAsync_MergesFunnelImpactReferrers()
     {
-        const string batched = "[" +
-            "{\"data\":{\"postStatsTotalBundle\":{\"readersCount\":1985,\"viewersCount\":2912,\"feedClickThroughRate\":null,\"presentationCount\":null}}}," +
-            "{\"data\":{\"postStatsTotalBundle\":{\"followersGained\":3,\"followersLost\":1,\"netFollowerCount\":2,\"subscribersGained\":1,\"netSubscriberCount\":1}}}," +
-            "{\"data\":{\"post\":{\"id\":\"p1\",\"referrers\":[" +
+        // The client sends one POST per query; reply based on which operation it asks for.
+        const string funnel = "[{\"data\":{\"postStatsTotalBundle\":{\"readersCount\":1985,\"viewersCount\":2912,\"feedClickThroughRate\":null,\"presentationCount\":null}}}]";
+        const string impact = "[{\"data\":{\"postStatsTotalBundle\":{\"followersGained\":3,\"followersLost\":1,\"netFollowerCount\":2,\"subscribersGained\":1,\"netSubscriberCount\":1}}}]";
+        const string referrers = "[{\"data\":{\"post\":{\"id\":\"p1\",\"referrers\":[" +
             "{\"totalCount\":124,\"type\":\"DIRECT\",\"sourceIdentifier\":\"direct\"}," +
             "{\"totalCount\":2483,\"type\":\"SEARCH\",\"sourceIdentifier\":\"google.com\",\"search\":{\"domain\":\"google.com\"}}" +
             "]}}}]";
 
-        var client = new MediumStatsClient(Get(MeJson), (_, _, _) => Task.FromResult(new FetchResult(200, batched)));
+        Func<string, string, CancellationToken, Task<FetchResult>> post = (_, body, _) =>
+        {
+            var r = body.Contains("StatsPostFunnelQuery") ? funnel
+                  : body.Contains("StatsPostImpactQuery") ? impact
+                  : referrers;
+            return Task.FromResult(new FetchResult(200, r));
+        };
+
+        var client = new MediumStatsClient(Get(MeJson), post);
         var d = await client.FetchStoryDetailAsync("p1");
 
         Assert.Equal(2912, d.ViewersCount);

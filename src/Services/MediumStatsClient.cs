@@ -189,78 +189,79 @@ public sealed class MediumStatsClient : IMediumStatsClient
 
     /// <summary>
     /// Fetches extended per-story stats by replaying the funnel, impact and
-    /// referrers GraphQL queries as one batched POST. Fields are merged by
-    /// presence, so result ordering doesn't matter.
+    /// referrers GraphQL queries. Medium's endpoint only processes the first
+    /// operation in a multi-op array, so each query is sent as its own POST
+    /// (the way the real stats page does it) and merged into one StoryDetail.
     /// </summary>
     public async Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
     {
         var bundleVars = new { postStatsTotalBundleInput = new { postId } };
-        var batch = JsonSerializer.Serialize(new object[]
-        {
-            new { operationName = "StatsPostFunnelQuery",    variables = bundleVars,                query = FunnelQuery },
-            new { operationName = "StatsPostImpactQuery",     variables = bundleVars,                query = ImpactQuery },
-            new { operationName = "StatsPostReferrersContainerQuery", variables = new { postId },    query = ReferrersQuery },
-        });
+        var detail = new StoryDetail();
+        await RunDetailQueryAsync(detail, "StatsPostFunnelQuery", bundleVars, FunnelQuery, ct);
+        await RunDetailQueryAsync(detail, "StatsPostImpactQuery", bundleVars, ImpactQuery, ct);
+        await RunDetailQueryAsync(detail, "StatsPostReferrersContainerQuery", new { postId }, ReferrersQuery, ct);
+        return detail;
+    }
 
-        FetchResult res = await _postJson(GraphQlUrl, batch, ct);
+    /// <summary>Runs one per-story GraphQL query and merges its fields into <paramref name="detail"/>.</summary>
+    private async Task RunDetailQueryAsync(StoryDetail detail, string opName, object variables, string query, CancellationToken ct)
+    {
+        var body = JsonSerializer.Serialize(new[] { new { operationName = opName, variables, query } });
+        FetchResult res = await _postJson(GraphQlUrl, body, ct);
+
         if (res.Status is 401 or 403)
             throw new MediumStatsException($"Medium rejected the request (HTTP {res.Status}).", isAuthFailure: true);
         if (res.Status is < 200 or >= 400)
         {
             DumpDiagnostics(GraphQlUrl, res);
-            throw new MediumStatsException($"Medium GraphQL returned HTTP {res.Status}.");
+            return; // skip this section; other queries may still succeed
         }
 
         JsonDocument doc;
         try { doc = JsonDocument.Parse(res.Body); }
-        catch (JsonException ex)
-        {
-            DumpDiagnostics(GraphQlUrl, res);
-            throw new MediumStatsException("Could not parse Medium story-detail response.", inner: ex);
-        }
+        catch (JsonException) { DumpDiagnostics(GraphQlUrl, res); return; }
 
-        var detail = new StoryDetail();
         using (doc)
         {
-            if (doc.RootElement.ValueKind != JsonValueKind.Array) return detail;
-            foreach (var entry in doc.RootElement.EnumerateArray())
+            // Single-op responses come back as a one-element array (or a bare object).
+            var element = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? (doc.RootElement.GetArrayLength() > 0 ? doc.RootElement[0] : default)
+                : doc.RootElement;
+            if (element.ValueKind != JsonValueKind.Object
+                || !element.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
+                return;
+
+            // Funnel + Impact both return postStatsTotalBundle; merge by field presence.
+            if (data.TryGetProperty("postStatsTotalBundle", out var b) && b.ValueKind == JsonValueKind.Object)
             {
-                if (!entry.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Object)
-                    continue;
+                if (b.TryGetProperty("viewersCount", out _)) detail.ViewersCount = GetLong(b, "viewersCount");
+                if (b.TryGetProperty("readersCount", out _)) detail.ReadersCount = GetLong(b, "readersCount");
+                if (b.TryGetProperty("feedClickThroughRate", out var ctr) && ctr.ValueKind == JsonValueKind.Number)
+                    detail.FeedClickThroughRate = ctr.GetDouble();
+                if (b.TryGetProperty("followersGained", out _)) detail.FollowersGained = GetLong(b, "followersGained");
+                if (b.TryGetProperty("followersLost", out _)) detail.FollowersLost = GetLong(b, "followersLost");
+                if (b.TryGetProperty("netFollowerCount", out _)) detail.NetFollowerCount = GetLong(b, "netFollowerCount");
+                if (b.TryGetProperty("subscribersGained", out _)) detail.SubscribersGained = GetLong(b, "subscribersGained");
+                if (b.TryGetProperty("netSubscriberCount", out _)) detail.NetSubscriberCount = GetLong(b, "netSubscriberCount");
+            }
 
-                // Funnel + Impact both return postStatsTotalBundle; merge by field presence.
-                if (data.TryGetProperty("postStatsTotalBundle", out var b) && b.ValueKind == JsonValueKind.Object)
+            // Referrers
+            if (TryGetPath(data, out var refs, "post", "referrers") && refs.ValueKind == JsonValueKind.Array)
+            {
+                var list = new List<Referrer>();
+                foreach (var r in refs.EnumerateArray())
                 {
-                    if (b.TryGetProperty("viewersCount", out _)) detail.ViewersCount = GetLong(b, "viewersCount");
-                    if (b.TryGetProperty("readersCount", out _)) detail.ReadersCount = GetLong(b, "readersCount");
-                    if (b.TryGetProperty("feedClickThroughRate", out var ctr) && ctr.ValueKind == JsonValueKind.Number)
-                        detail.FeedClickThroughRate = ctr.GetDouble();
-                    if (b.TryGetProperty("followersGained", out _)) detail.FollowersGained = GetLong(b, "followersGained");
-                    if (b.TryGetProperty("followersLost", out _)) detail.FollowersLost = GetLong(b, "followersLost");
-                    if (b.TryGetProperty("netFollowerCount", out _)) detail.NetFollowerCount = GetLong(b, "netFollowerCount");
-                    if (b.TryGetProperty("subscribersGained", out _)) detail.SubscribersGained = GetLong(b, "subscribersGained");
-                    if (b.TryGetProperty("netSubscriberCount", out _)) detail.NetSubscriberCount = GetLong(b, "netSubscriberCount");
-                }
-
-                // Referrers
-                if (TryGetPath(data, out var refs, "post", "referrers") && refs.ValueKind == JsonValueKind.Array)
-                {
-                    var list = new List<Referrer>();
-                    foreach (var r in refs.EnumerateArray())
+                    list.Add(new Referrer
                     {
-                        list.Add(new Referrer
-                        {
-                            Count = GetLong(r, "totalCount"),
-                            Type = GetString(r, "type") ?? "",
-                            Source = GetString(r, "sourceIdentifier")
-                                     ?? (TryGetPath(r, out var d, "search", "domain") ? d.GetString() ?? "" : ""),
-                        });
-                    }
-                    detail.Referrers = list.OrderByDescending(x => x.Count).ToList();
+                        Count = GetLong(r, "totalCount"),
+                        Type = GetString(r, "type") ?? "",
+                        Source = GetString(r, "sourceIdentifier")
+                                 ?? (TryGetPath(r, out var d, "search", "domain") ? d.GetString() ?? "" : ""),
+                    });
                 }
+                detail.Referrers = list.OrderByDescending(x => x.Count).ToList();
             }
         }
-        return detail;
     }
 
     /// <summary>Builds the batched GraphQL request body for one page of story stats.</summary>
