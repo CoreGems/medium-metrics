@@ -1,0 +1,26 @@
+<Window x:Class="MediumMetrics.Auth.MediumLoginWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Sign in to Medium"
+        Height="760" Width="920"
+        WindowStartupLocation="CenterOwner">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="#FAFAFA" Padding="12,8" BorderBrush="#EEE" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" Foreground="#444">
+                    Sign in to your Medium account below. When you reach your stats page this
+                    window captures the session automatically — or click "Use this account" once signed in.
+                </TextBlock>
+                <Button Grid.Column="1" x:Name="UseAccountButton" Content="Use this account"
+                        Click="OnUseAccountClick" Padding="12,6" Margin="8,0,0,0"
+                        FontWeight="SemiBold" IsEnabled="False" />
+            </Grid>
+        </Border>
+        <wv2:WebView2 x:Name="WebView" />
+    </DockPanel>
+</Window>
