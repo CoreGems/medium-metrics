@@ -95,9 +95,9 @@ public partial class MainWindow : Window
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _app.ShowSettings(this);
 
     /// <summary>
-    /// Double-click a story to open the article in the browser; Ctrl+double-click
-    /// to open the in-app per-story dashboard. Resolves the row under the cursor
-    /// (not SelectedItem) because Ctrl+click toggles selection and can clear it.
+    /// Double-click a story to open the in-app per-story dashboard; Ctrl+double-click
+    /// to open the article in the browser. Resolves the row under the cursor (not
+    /// SelectedItem) because Ctrl+click toggles selection and can clear it.
     /// </summary>
     private void OnStoryDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -106,10 +106,15 @@ public partial class MainWindow : Window
 
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
-            _app.ShowStoryDashboard(story, this);
+            OpenInBrowser(story);
             return;
         }
 
+        _app.ShowStoryDashboard(story, this);
+    }
+
+    private static void OpenInBrowser(StorySnapshot story)
+    {
         if (!Uri.TryCreate(story.Url, UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             return; // nothing to open / not a web URL

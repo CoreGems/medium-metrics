@@ -96,7 +96,7 @@
                 <DataGrid x:Name="StoriesGrid" ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
                           IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                           CanUserAddRows="False" MouseDoubleClick="OnStoryDoubleClick"
-                          ToolTip="Double-click: open the article · Ctrl+double-click: story dashboard">
+                          ToolTip="Double-click: story dashboard · Ctrl+double-click: open the article">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
                         <DataGridTextColumn Header="Published" SortMemberPath="PublishedAt" Binding="{Binding PublishedAt.LocalDateTime, StringFormat=yyyy-MM-dd}" Width="95" />
