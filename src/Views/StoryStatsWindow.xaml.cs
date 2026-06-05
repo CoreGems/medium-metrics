@@ -51,7 +51,8 @@ public partial class StoryStatsWindow : Window
             SubscribersText.Text = $"{d.SubscribersGained:N0} ({Signed(d.NetSubscriberCount)})";
             CtrText.Text = d.FeedClickThroughRate is { } ctr ? ctr.ToString("P1") : "—";
             ReferrersGrid.ItemsSource = d.Referrers;
-            DetailStatus.Text = $"Viewers {d.ViewersCount:N0} · Readers {d.ReadersCount:N0}";
+            DetailStatus.Text =
+                $"Refreshed {DateTime.Now:HH:mm:ss}  ·  Viewers {d.ViewersCount:N0} · Readers {d.ReadersCount:N0}";
         }
         catch (MediumStatsException ex)
         {
