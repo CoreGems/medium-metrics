@@ -15,8 +15,8 @@ public sealed class StatsSnapshot
 
     public long TotalViews => Stories.Sum(s => s.Views);
     public long TotalReads => Stories.Sum(s => s.Reads);
-    public long TotalClaps => Stories.Sum(s => s.Claps);
-    public long TotalResponses => Stories.Sum(s => s.Responses);
+    public long TotalImpressions => Stories.Sum(s => s.Impressions);
+    public decimal TotalEarningsUsd => Stories.Sum(s => s.EarningsUsd);
 
     /// <summary>Aggregate reads / views across all stories, in [0, 1].</summary>
     public double TotalReadRatio => TotalViews > 0 ? (double)TotalReads / TotalViews : 0d;

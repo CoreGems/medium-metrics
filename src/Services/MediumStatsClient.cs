@@ -25,7 +25,8 @@ public sealed class MediumStatsClient : IMediumStatsClient
         "  user(username: $username) {\n" +
         "    id\n" +
         "    postsConnection(first: $first, after: $after, orderBy: $orderBy, filter: $filter) {\n" +
-        "      edges { node { id title totalStats { presentations views reads } } }\n" +
+        "      edges { node { id title totalStats { presentations views reads } " +
+        "earnings { total { currencyCode units nanos } } } }\n" +
         "      pageInfo { endCursor hasNextPage }\n" +
         "    }\n" +
         "  }\n" +
@@ -139,8 +140,8 @@ public sealed class MediumStatsClient : IMediumStatsClient
                             Title = GetString(node, "title") ?? "(untitled)",
                             Views = GetLong(ts, "views"),
                             Reads = GetLong(ts, "reads"),
-                            Claps = 0,     // not exposed by the lifetime-stats query
-                            Responses = 0,
+                            Impressions = GetLong(ts, "presentations"),
+                            EarningsUsd = GetEarnings(node),
                         });
                     }
                 }
@@ -272,6 +273,15 @@ public sealed class MediumStatsClient : IMediumStatsClient
         && p.ValueKind == JsonValueKind.String
             ? p.GetString()
             : null;
+
+    /// <summary>Reads node.earnings.total as USD: units + nanos/1e9 (e.g. 1 unit + 390000000 nanos = $1.39).</summary>
+    private static decimal GetEarnings(JsonElement node)
+    {
+        if (!TryGetPath(node, out var total, "earnings", "total")) return 0m;
+        long units = GetLong(total, "units");
+        long nanos = GetLong(total, "nanos");
+        return units + nanos / 1_000_000_000m;
+    }
 
     private static long GetLong(JsonElement obj, params string[] names)
     {

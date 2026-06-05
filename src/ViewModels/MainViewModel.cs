@@ -27,7 +27,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private long _followers;
     [ObservableProperty] private long _totalViews;
     [ObservableProperty] private long _totalReads;
-    [ObservableProperty] private long _totalClaps;
+    [ObservableProperty] private long _totalImpressions;
+    [ObservableProperty] private decimal _totalEarnings;
     [ObservableProperty] private string _latestTimestampText = "No data yet";
 
     [ObservableProperty]
@@ -107,7 +108,8 @@ public partial class MainViewModel : ObservableObject
         Followers = snapshot.Followers;
         TotalViews = snapshot.TotalViews;
         TotalReads = snapshot.TotalReads;
-        TotalClaps = snapshot.TotalClaps;
+        TotalImpressions = snapshot.TotalImpressions;
+        TotalEarnings = snapshot.TotalEarningsUsd;
         LatestTimestampText = snapshot.Timestamp == default
             ? "No data yet"
             : snapshot.Timestamp.ToLocalTime().ToString("g");

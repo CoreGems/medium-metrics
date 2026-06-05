@@ -18,9 +18,9 @@ public sealed class FakeMediumStatsClient : IMediumStatsClient
 
         var stories = new List<StorySnapshot>
         {
-            new() { StoryId = "p1", Title = "Why I Track My Own Stats", Views = 1204 + bump * 3, Reads = 602 + bump, Claps = 88 + bump, Responses = 4 },
-            new() { StoryId = "p2", Title = "A Tiny WPF App in a Weekend", Views = 933 + bump * 2, Reads = 410 + bump, Claps = 51 + bump, Responses = 2 },
-            new() { StoryId = "p3", Title = "Notes on Local-First Tools",   Views = 421 + bump,     Reads = 150 + bump, Claps = 19,        Responses = 0 },
+            new() { StoryId = "p1", Title = "Why I Track My Own Stats", Views = 1204 + bump * 3, Reads = 602 + bump, Impressions = 4200 + bump * 5, EarningsUsd = 12.51m },
+            new() { StoryId = "p2", Title = "A Tiny WPF App in a Weekend", Views = 933 + bump * 2, Reads = 410 + bump, Impressions = 3100 + bump * 4, EarningsUsd = 6.39m },
+            new() { StoryId = "p3", Title = "Notes on Local-First Tools",   Views = 421 + bump,     Reads = 150 + bump, Impressions = 1500 + bump,     EarningsUsd = 0m },
         };
 
         var snapshot = new StatsSnapshot

@@ -15,7 +15,7 @@ namespace MediumMetrics.Services;
 public sealed class ReportStore
 {
     private const string Header =
-        "Timestamp,Followers,TotalViews,TotalReads,TotalClaps,TotalResponses,StoryCount";
+        "Timestamp,Followers,TotalViews,TotalReads,TotalImpressions,TotalEarnings,StoryCount";
 
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
@@ -42,8 +42,8 @@ public sealed class ReportStore
           .Append(r.Followers).Append(',')
           .Append(r.TotalViews).Append(',')
           .Append(r.TotalReads).Append(',')
-          .Append(r.TotalClaps).Append(',')
-          .Append(r.TotalResponses).Append(',')
+          .Append(r.TotalImpressions).Append(',')
+          .Append(r.TotalEarningsUsd.ToString(CultureInfo.InvariantCulture)).Append(',')
           .Append(r.StoryCount).Append('\n');
 
         File.AppendAllText(_csvPath, sb.ToString());
@@ -100,14 +100,17 @@ public sealed class ReportStore
         row.Followers = ParseLong(f[1]);
         row.TotalViews = ParseLong(f[2]);
         row.TotalReads = ParseLong(f[3]);
-        row.TotalClaps = ParseLong(f[4]);
-        row.TotalResponses = ParseLong(f[5]);
+        row.TotalImpressions = ParseLong(f[4]);
+        row.TotalEarningsUsd = ParseDecimal(f[5]);
         row.StoryCount = (int)ParseLong(f[6]);
         return true;
     }
 
     private static long ParseLong(string s) =>
         long.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+
+    private static decimal ParseDecimal(string s) =>
+        decimal.TryParse(s, NumberStyles.Number, CultureInfo.InvariantCulture, out var v) ? v : 0m;
 
     private void EnsureDirectory() =>
         Directory.CreateDirectory(Path.GetDirectoryName(_csvPath)!);

@@ -18,8 +18,8 @@ public class PersistenceTests
         Followers = followers,
         Stories = new List<StorySnapshot>
         {
-            new() { StoryId = "a", Title = "A", Views = 100, Reads = 50, Claps = 10, Responses = 1 },
-            new() { StoryId = "b", Title = "B", Views = 40,  Reads = 10, Claps = 2,  Responses = 0 },
+            new() { StoryId = "a", Title = "A", Views = 100, Reads = 50, Impressions = 300, EarningsUsd = 1.50m },
+            new() { StoryId = "b", Title = "B", Views = 40,  Reads = 10, Impressions = 120, EarningsUsd = 0m },
         },
     };
 
@@ -48,9 +48,10 @@ public class PersistenceTests
 
         var row = Assert.Single(rows);
         Assert.Equal(42, row.Followers);
-        Assert.Equal(140, row.TotalViews);   // 100 + 40
-        Assert.Equal(60, row.TotalReads);    // 50 + 10
-        Assert.Equal(12, row.TotalClaps);    // 10 + 2
+        Assert.Equal(140, row.TotalViews);        // 100 + 40
+        Assert.Equal(60, row.TotalReads);         // 50 + 10
+        Assert.Equal(420, row.TotalImpressions);  // 300 + 120
+        Assert.Equal(1.50m, row.TotalEarningsUsd);
         Assert.Equal(2, row.StoryCount);
     }
 

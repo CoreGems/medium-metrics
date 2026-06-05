@@ -19,8 +19,10 @@ public class GraphQlParsingTests
         const string graphql =
             "[{\"data\":{\"user\":{\"id\":\"u1\",\"postsConnection\":{\"edges\":[" +
             "{\"node\":{\"id\":\"p1\",\"title\":\"The Ukrainian Guide to NATO Diplomacy\"," +
-            "\"totalStats\":{\"presentations\":292,\"views\":45,\"reads\":32}}}," +
-            "{\"node\":{\"id\":\"p2\",\"title\":\"Notes\",\"totalStats\":{\"presentations\":511,\"views\":200,\"reads\":137}}}" +
+            "\"totalStats\":{\"presentations\":292,\"views\":45,\"reads\":32}," +
+            "\"earnings\":{\"total\":{\"currencyCode\":\"USD\",\"units\":1,\"nanos\":390000000}}}}," +
+            "{\"node\":{\"id\":\"p2\",\"title\":\"Notes\",\"totalStats\":{\"presentations\":511,\"views\":200,\"reads\":137}," +
+            "\"earnings\":{\"total\":{\"currencyCode\":\"USD\",\"units\":9,\"nanos\":510000000}}}}" +
             "],\"pageInfo\":{\"endCursor\":\"\",\"hasNextPage\":false}}}}}]";
 
         var client = new MediumStatsClient(Get(MeJson), (_, _, _) => Task.FromResult(new FetchResult(200, graphql)));
@@ -31,8 +33,12 @@ public class GraphQlParsingTests
         Assert.Equal("The Ukrainian Guide to NATO Diplomacy", snap.Stories[0].Title);
         Assert.Equal(45, snap.Stories[0].Views);
         Assert.Equal(32, snap.Stories[0].Reads);
-        Assert.Equal(245, snap.TotalViews);  // 45 + 200
-        Assert.Equal(169, snap.TotalReads);  // 32 + 137
+        Assert.Equal(292, snap.Stories[0].Impressions);
+        Assert.Equal(1.39m, snap.Stories[0].EarningsUsd);   // 1 unit + 390000000 nanos
+        Assert.Equal(245, snap.TotalViews);                 // 45 + 200
+        Assert.Equal(169, snap.TotalReads);                 // 32 + 137
+        Assert.Equal(803, snap.TotalImpressions);           // 292 + 511
+        Assert.Equal(10.90m, snap.TotalEarningsUsd);        // 1.39 + 9.51
     }
 
     [Fact]

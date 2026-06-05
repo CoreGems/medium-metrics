@@ -43,8 +43,9 @@ page loads per-story numbers via GraphQL:
   - `edges[].node.title`
   - `edges[].node.totalStats.{presentations, views, reads}`  ← views/reads
   - `pageInfo.{endCursor, hasNextPage}`  ← paginate with `after = endCursor`
-- **Claps/responses are NOT in this query** → recorded as 0. (Earnings are available
-  under `node.earnings.total.{units,nanos}` if we want them later.)
+- **Claps/responses are NOT in Medium's stats API at all** (checked every captured
+  query). The app shows **Impressions** (`presentations`) and **Earnings**
+  (`node.earnings.total.{units,nanos}`, USD = units + nanos/1e9) instead.
 - Other operations seen on the page: `UserMonthlyStoryStatsTimeseriesQuery` (monthly
   chart) — not used yet.
 

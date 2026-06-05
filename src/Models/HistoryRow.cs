@@ -10,8 +10,8 @@ public sealed class HistoryRow
     public long Followers { get; set; }
     public long TotalViews { get; set; }
     public long TotalReads { get; set; }
-    public long TotalClaps { get; set; }
-    public long TotalResponses { get; set; }
+    public long TotalImpressions { get; set; }
+    public decimal TotalEarningsUsd { get; set; }
     public int StoryCount { get; set; }
 
     public double ReadRatio => TotalViews > 0 ? (double)TotalReads / TotalViews : 0d;
@@ -22,8 +22,8 @@ public sealed class HistoryRow
         Followers = s.Followers,
         TotalViews = s.TotalViews,
         TotalReads = s.TotalReads,
-        TotalClaps = s.TotalClaps,
-        TotalResponses = s.TotalResponses,
+        TotalImpressions = s.TotalImpressions,
+        TotalEarningsUsd = s.TotalEarningsUsd,
         StoryCount = s.Stories.Count,
     };
 }

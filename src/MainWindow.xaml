@@ -72,8 +72,8 @@
                     <TextBlock Text="Total reads" Style="{StaticResource StatLabel}" />
                 </StackPanel>
                 <StackPanel>
-                    <TextBlock Text="{Binding TotalClaps}" Style="{StaticResource Stat}" />
-                    <TextBlock Text="Total claps" Style="{StaticResource StatLabel}" />
+                    <TextBlock Text="{Binding TotalEarnings, StringFormat=C2}" Style="{StaticResource Stat}" />
+                    <TextBlock Text="Total earnings" Style="{StaticResource StatLabel}" />
                 </StackPanel>
             </UniformGrid>
         </Border>
@@ -96,8 +96,8 @@
                         <DataGridTextColumn Header="Views" Binding="{Binding Views}" Width="80" />
                         <DataGridTextColumn Header="Reads" Binding="{Binding Reads}" Width="80" />
                         <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />
-                        <DataGridTextColumn Header="Claps" Binding="{Binding Claps}" Width="70" />
-                        <DataGridTextColumn Header="Responses" Binding="{Binding Responses}" Width="90" />
+                        <DataGridTextColumn Header="Impressions" Binding="{Binding Impressions}" Width="100" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding EarningsUsd, StringFormat=C2}" Width="90" />
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>
@@ -115,7 +115,8 @@
                         <DataGridTextColumn Header="Views" Binding="{Binding TotalViews}" Width="80" />
                         <DataGridTextColumn Header="Reads" Binding="{Binding TotalReads}" Width="80" />
                         <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />
-                        <DataGridTextColumn Header="Claps" Binding="{Binding TotalClaps}" Width="70" />
+                        <DataGridTextColumn Header="Impressions" Binding="{Binding TotalImpressions}" Width="100" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding TotalEarningsUsd, StringFormat=C2}" Width="90" />
                         <DataGridTextColumn Header="Stories" Binding="{Binding StoryCount}" Width="70" />
                     </DataGrid.Columns>
                 </DataGrid>
