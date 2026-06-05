@@ -19,6 +19,7 @@ public class GraphQlParsingTests
         const string graphql =
             "[{\"data\":{\"user\":{\"id\":\"u1\",\"postsConnection\":{\"edges\":[" +
             "{\"node\":{\"id\":\"p1\",\"title\":\"The Ukrainian Guide to NATO Diplomacy\"," +
+            "\"mediumUrl\":\"https://medium.com/@alexbuzunov/the-ukrainian-guide-2d6e5011e5c0\"," +
             "\"totalStats\":{\"presentations\":292,\"views\":45,\"reads\":32}," +
             "\"earnings\":{\"total\":{\"currencyCode\":\"USD\",\"units\":1,\"nanos\":390000000}}}}," +
             "{\"node\":{\"id\":\"p2\",\"title\":\"Notes\",\"totalStats\":{\"presentations\":511,\"views\":200,\"reads\":137}," +
@@ -31,6 +32,7 @@ public class GraphQlParsingTests
         Assert.Equal(12, snap.Followers);
         Assert.Equal(2, snap.Stories.Count);
         Assert.Equal("The Ukrainian Guide to NATO Diplomacy", snap.Stories[0].Title);
+        Assert.Equal("https://medium.com/@alexbuzunov/the-ukrainian-guide-2d6e5011e5c0", snap.Stories[0].Url);
         Assert.Equal(45, snap.Stories[0].Views);
         Assert.Equal(32, snap.Stories[0].Reads);
         Assert.Equal(292, snap.Stories[0].Impressions);

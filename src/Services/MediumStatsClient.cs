@@ -25,7 +25,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
         "  user(username: $username) {\n" +
         "    id\n" +
         "    postsConnection(first: $first, after: $after, orderBy: $orderBy, filter: $filter) {\n" +
-        "      edges { node { id title totalStats { presentations views reads } " +
+        "      edges { node { id title mediumUrl totalStats { presentations views reads } " +
         "earnings { total { currencyCode units nanos } } } }\n" +
         "      pageInfo { endCursor hasNextPage }\n" +
         "    }\n" +
@@ -139,6 +139,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
                         {
                             StoryId = GetString(node, "id") ?? "",
                             Title = GetString(node, "title") ?? "(untitled)",
+                            Url = GetString(node, "mediumUrl") ?? "",
                             Views = GetLong(ts, "views"),
                             Reads = GetLong(ts, "reads"),
                             Impressions = GetLong(ts, "presentations"),

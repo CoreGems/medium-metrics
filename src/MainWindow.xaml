@@ -95,7 +95,8 @@
                 <TextBlock DockPanel.Dock="Top" Text="Stories" FontWeight="Bold" Margin="2,0,0,4" />
                 <DataGrid ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
                           IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                          CanUserAddRows="False">
+                          CanUserAddRows="False" MouseDoubleClick="OnStoryDoubleClick"
+                          ToolTip="Double-click a story to open it in your browser">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
                         <DataGridTextColumn Header="Views" Binding="{Binding Views}" Width="80" />

@@ -7,6 +7,10 @@ public sealed class StorySnapshot
 {
     public string StoryId { get; set; } = "";
     public string Title { get; set; } = "";
+
+    /// <summary>Canonical Medium URL for the story (used to open it in a browser).</summary>
+    public string Url { get; set; } = "";
+
     public long Views { get; set; }
     public long Reads { get; set; }
 

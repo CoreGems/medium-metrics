@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Windows;
 using MediumMetrics.Models;
+using MediumMetrics.Services;
 using MediumMetrics.ViewModels;
 
 namespace MediumMetrics;
@@ -56,4 +58,23 @@ public partial class MainWindow : Window
     private void OnSignInClick(object sender, RoutedEventArgs e) => _app.SignIn(this);
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _app.ShowSettings(this);
+
+    /// <summary>Opens the double-clicked story in the default browser.</summary>
+    private void OnStoryDoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if ((sender as System.Windows.Controls.DataGrid)?.SelectedItem is not StorySnapshot story)
+            return;
+        if (!Uri.TryCreate(story.Url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+            return; // nothing to open / not a web URL
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to open story URL", ex);
+        }
+    }
 }
