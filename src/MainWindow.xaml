@@ -95,7 +95,7 @@
                 <TextBlock DockPanel.Dock="Top" Text="Stories" FontWeight="Bold" Margin="2,0,0,4" />
                 <DataGrid x:Name="StoriesGrid" ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
                           IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
-                          CanUserAddRows="False" MouseDoubleClick="OnStoryDoubleClick"
+                          CanUserAddRows="False" MouseDoubleClick="OnStoryDoubleClick" Sorting="OnStoriesSorting"
                           ToolTip="Double-click: story dashboard · Ctrl+double-click: open the article">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />

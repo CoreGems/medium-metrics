@@ -41,6 +41,20 @@ public partial class MainWindow : Window
         StoriesGrid.Items.Refresh();
     }
 
+    /// <summary>
+    /// Persist the sort as soon as the user clicks a header, so it survives even if
+    /// the app is killed abruptly (not just on a clean window close). The sort is
+    /// applied after this event, so capture on the next dispatcher cycle.
+    /// </summary>
+    private void OnStoriesSorting(object sender, DataGridSortingEventArgs e)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            CaptureSort();
+            _app.SaveSettings();
+        }));
+    }
+
     /// <summary>Captures the current stories-list sort into settings (for restart persistence).</summary>
     private void CaptureSort()
     {
