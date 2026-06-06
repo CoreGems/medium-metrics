@@ -18,9 +18,9 @@ public sealed class FakeMediumStatsClient : IMediumStatsClient
 
         var stories = new List<StorySnapshot>
         {
-            new() { StoryId = "p1", Title = "Why I Track My Own Stats", Url = "https://medium.com/", PublishedAt = new DateTimeOffset(2026, 1, 15, 0, 0, 0, TimeSpan.Zero), Views = 1204 + bump * 3, Reads = 602 + bump, Impressions = 4200 + bump * 5, EarningsUsd = 12.51m },
-            new() { StoryId = "p2", Title = "A Tiny WPF App in a Weekend", Url = "https://medium.com/", PublishedAt = new DateTimeOffset(2026, 3, 2, 0, 0, 0, TimeSpan.Zero), Views = 933 + bump * 2, Reads = 410 + bump, Impressions = 3100 + bump * 4, EarningsUsd = 6.39m },
-            new() { StoryId = "p3", Title = "Notes on Local-First Tools", Url = "https://medium.com/", PublishedAt = new DateTimeOffset(2026, 4, 20, 0, 0, 0, TimeSpan.Zero), Views = 421 + bump, Reads = 150 + bump, Impressions = 1500 + bump, EarningsUsd = 0m },
+            new() { StoryId = "p1", Title = "Why I Track My Own Stats", Url = "https://medium.com/", PublishedAt = new DateTimeOffset(2026, 1, 15, 0, 0, 0, TimeSpan.Zero), Views = 1204 + bump * 3, Reads = 602 + bump, Impressions = 4200 + bump * 5, Claps = 88, EarningsUsd = 12.51m, Tags = new[] { "Programming", "Productivity" } },
+            new() { StoryId = "p2", Title = "A Tiny WPF App in a Weekend", Url = "https://medium.com/", PublishedAt = new DateTimeOffset(2026, 3, 2, 0, 0, 0, TimeSpan.Zero), Views = 933 + bump * 2, Reads = 410 + bump, Impressions = 3100 + bump * 4, Claps = 51, EarningsUsd = 6.39m, Tags = new[] { "Programming", "DotNet", "WPF" } },
+            new() { StoryId = "p3", Title = "Notes on Local-First Tools", Url = "https://medium.com/", PublishedAt = new DateTimeOffset(2026, 4, 20, 0, 0, 0, TimeSpan.Zero), Views = 421 + bump, Reads = 150 + bump, Impressions = 1500 + bump, Claps = 19, EarningsUsd = 0m, Tags = new[] { "Software", "Productivity" } },
         };
 
         var snapshot = new StatsSnapshot

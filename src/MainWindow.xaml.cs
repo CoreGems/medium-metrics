@@ -104,9 +104,36 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
 
+    /// <summary>Copies all metadata for the right-clicked History row to the clipboard.</summary>
+    private void OnHistoryCopyClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not HistoryRow row) return;
+        try
+        {
+            Clipboard.SetText(BuildHistoryRowText(row));
+        }
+        catch (Exception ex)
+        {
+            Log.Error("History row clipboard copy failed", ex);
+        }
+    }
+
+    private static string BuildHistoryRowText(HistoryRow r) =>
+        string.Join(Environment.NewLine,
+            $"Timestamp: {r.Timestamp:g}",
+            $"Followers: {r.Followers:N0}",
+            $"Total views: {r.TotalViews:N0}",
+            $"Total reads: {r.TotalReads:N0}",
+            $"Read ratio: {r.ReadRatio:P0}",
+            $"Total impressions: {r.TotalImpressions:N0}",
+            $"Total earnings: {r.TotalEarningsUsd:C2}",
+            $"Stories: {r.StoryCount:N0}");
+
     private void OnSignInClick(object sender, RoutedEventArgs e) => _app.SignIn(this);
 
     private void OnSettingsClick(object sender, RoutedEventArgs e) => _app.ShowSettings(this);
+
+    private void OnReportsClick(object sender, RoutedEventArgs e) => _app.ShowReports(this);
 
     /// <summary>
     /// Double-click a story to open the in-app per-story dashboard; Ctrl+double-click

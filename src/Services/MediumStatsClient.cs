@@ -26,6 +26,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
         "    id\n" +
         "    postsConnection(first: $first, after: $after, orderBy: $orderBy, filter: $filter) {\n" +
         "      edges { node { id title mediumUrl firstPublishedAt clapCount " +
+        "tags { id displayTitle normalizedTagSlug } " +
         "totalStats { presentations views reads } " +
         "earnings { total { currencyCode units nanos } } } }\n" +
         "      pageInfo { endCursor hasNextPage }\n" +
@@ -156,6 +157,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
                             Impressions = GetLong(ts, "presentations"),
                             Claps = GetLong(node, "clapCount"),
                             EarningsUsd = GetEarnings(node),
+                            Tags = GetTags(node),
                         });
                     }
                 }
@@ -398,6 +400,23 @@ public sealed class MediumStatsClient : IMediumStatsClient
     {
         long ms = GetLong(obj, name);
         return ms > 0 ? DateTimeOffset.FromUnixTimeMilliseconds(ms) : null;
+    }
+
+    /// <summary>Reads node.tags as display titles (falling back to the slug/id), skipping blanks.</summary>
+    private static IReadOnlyList<string> GetTags(JsonElement node)
+    {
+        if (!node.TryGetProperty("tags", out var tags) || tags.ValueKind != JsonValueKind.Array)
+            return new List<string>();
+
+        var list = new List<string>();
+        foreach (var t in tags.EnumerateArray())
+        {
+            var name = GetString(t, "displayTitle")
+                       ?? GetString(t, "normalizedTagSlug")
+                       ?? GetString(t, "id");
+            if (!string.IsNullOrWhiteSpace(name)) list.Add(name);
+        }
+        return list;
     }
 
     /// <summary>Reads node.earnings.total as USD: units + nanos/1e9 (e.g. 1 unit + 390000000 nanos = $1.39).</summary>

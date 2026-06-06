@@ -26,6 +26,9 @@ public partial class StoryStatsWindow : Window
         InitializeComponent();
         SourceInitialized += (_, _) => PositionBesideOwner();
         Loaded += (_, _) => BringToTop();
+        // Closing an owned window can activate a window behind the owner; keep the
+        // main window in front instead.
+        Closed += (_, _) => Owner?.Activate();
         ShowStory(index);
     }
 
@@ -77,6 +80,9 @@ public partial class StoryStatsWindow : Window
         ViewsText.Text = _story.Views.ToString("N0");
         ReadsText.Text = _story.Reads.ToString("N0");
         RatioText.Text = _story.ReadRatio.ToString("P0");
+
+        TagsText.Text = _story.Tags.Count > 0 ? $"Tags: {string.Join(", ", _story.Tags)}" : "";
+        TagsText.Visibility = _story.Tags.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         // Clear the on-demand sections so stale data doesn't linger while loading.
         FollowersText.Text = SubscribersText.Text = CtrText.Text = "—";
@@ -173,8 +179,13 @@ public partial class StoryStatsWindow : Window
 
         var sb = new StringBuilder();
         sb.AppendLine(s.Title);
-        if (!string.IsNullOrEmpty(s.Url)) sb.AppendLine(s.Url);
+        if (!string.IsNullOrEmpty(s.Url))
+        {
+            sb.AppendLine(s.Url);
+            sb.AppendLine($"Free link: https://freedium-mirror.cfd/{s.Url}");
+        }
         if (s.PublishedAt is { } p) sb.AppendLine($"Published: {p.LocalDateTime:yyyy-MM-dd}");
+        if (s.Tags.Count > 0) sb.AppendLine($"Tags: {string.Join(", ", s.Tags)}");
         sb.AppendLine($"Views: {views:N0}   Reads: {reads:N0}   Read ratio: {ratio:P0}");
         sb.AppendLine($"Impressions: {s.Impressions:N0}   Claps: {s.Claps:N0}   Earnings: {s.EarningsUsd:C2}");
 

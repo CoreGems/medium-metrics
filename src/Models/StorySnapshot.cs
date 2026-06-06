@@ -32,6 +32,9 @@ public sealed class StorySnapshot
     /// <summary>Lifetime earnings for this story, in USD.</summary>
     public decimal EarningsUsd { get; set; }
 
+    /// <summary>Topic tags applied to the story (display titles, e.g. "Politics"). Empty if none/unknown.</summary>
+    public IReadOnlyList<string> Tags { get; set; } = new List<string>();
+
     /// <summary>Reads / Views as a fraction in [0, 1]. Returns 0 when there are no views.</summary>
     public double ReadRatio => Views > 0 ? (double)Reads / Views : 0d;
 }

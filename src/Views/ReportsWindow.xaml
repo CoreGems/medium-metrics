@@ -1,0 +1,113 @@
+<Window x:Class="MediumMetrics.Views.ReportsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:MediumMetrics.Views"
+        Title="Reports" Height="620" Width="680" MinHeight="380" MinWidth="480"
+        WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <conv:RatioToPercentConverter x:Key="Ratio" />
+    </Window.Resources>
+    <DockPanel Margin="16">
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Reports" FontSize="18" FontWeight="Bold" />
+            <TextBlock x:Name="SummaryText" Foreground="#777" FontSize="12" Margin="0,2,0,0" />
+        </StackPanel>
+
+        <!-- Bottom buttons -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Copy" Click="OnCopyClick" Padding="12,6" Margin="0,0,8,0"
+                    ToolTip="Copy the current tab's report to the clipboard" />
+            <Button Content="Refresh" Click="OnRefreshClick" Padding="12,6" Margin="0,0,8,0"
+                    ToolTip="Recompute from the latest snapshot" />
+            <Button Content="Close" Click="OnCloseClick" Padding="16,6" />
+        </StackPanel>
+
+        <TabControl x:Name="Tabs" Margin="0,14,0,0">
+            <!-- By tag -->
+            <TabItem Header="By tag">
+                <DataGrid x:Name="ByTagGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                          VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="*" />
+                        <DataGridTextColumn Header="Stories" Binding="{Binding Stories}" Width="70" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding Views, StringFormat=N0}" Width="80" />
+                        <DataGridTextColumn Header="Reads" Binding="{Binding Reads, StringFormat=N0}" Width="80" />
+                        <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="60" />
+                        <DataGridTextColumn Header="Impressions" Binding="{Binding Impressions, StringFormat=N0}" Width="90" />
+                        <DataGridTextColumn Header="Claps" Binding="{Binding Claps, StringFormat=N0}" Width="70" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding Earnings, StringFormat=C2}" Width="80" />
+                        <DataGridTextColumn Header="$/story" Binding="{Binding EarningsPerStory, StringFormat=C2}" Width="70" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- By year -->
+            <TabItem Header="By year">
+                <DataGrid x:Name="ByYearGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                          VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <!-- Highlight the in-progress year, like the 'so far' row. -->
+                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                                    <Setter Property="FontWeight" Value="Bold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Period" Binding="{Binding Period}" Width="*" />
+                        <DataGridTextColumn Header="Stories" Binding="{Binding Stories}" Width="80" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding Views, StringFormat=N0}" Width="100" />
+                        <DataGridTextColumn Header="Reads" Binding="{Binding Reads, StringFormat=N0}" Width="100" />
+                        <DataGridTextColumn Header="Read ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="90" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding Earnings, StringFormat=C2}" Width="100" />
+                        <DataGridTextColumn Header="$/story" Binding="{Binding EarningsPerStory, StringFormat=C2}" Width="80" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- By month -->
+            <TabItem Header="By month">
+                <DataGrid x:Name="ByMonthGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                          VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Month" Binding="{Binding Month}" Width="*" />
+                        <DataGridTextColumn Header="Stories" Binding="{Binding Stories}" Width="80" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding Views, StringFormat=N0}" Width="100" />
+                        <DataGridTextColumn Header="Reads" Binding="{Binding Reads, StringFormat=N0}" Width="100" />
+                        <DataGridTextColumn Header="Impressions" Binding="{Binding Impressions, StringFormat=N0}" Width="110" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding Earnings, StringFormat=C2}" Width="100" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </TabItem>
+
+            <!-- Followers/subscribers by tag (on-demand: needs a detail fetch per story) -->
+            <TabItem Header="Followers by tag">
+                <DockPanel Margin="0,8,0,0">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="LoadFollowersButton" Content="Load" Click="OnLoadFollowersClick" Padding="12,4"
+                                ToolTip="Fetches per-story detail for every story (slower)" />
+                        <TextBlock x:Name="FollowersStatus" VerticalAlignment="Center" Foreground="#777"
+                                   FontSize="12" Margin="12,0,0,0"
+                                   Text="Followers/subscribers need a detail fetch per story. Click Load." />
+                    </StackPanel>
+                    <DataGrid x:Name="FollowersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                              VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Tag" Binding="{Binding Tag}" Width="*" />
+                            <DataGridTextColumn Header="Stories" Binding="{Binding Stories}" Width="80" />
+                            <DataGridTextColumn Header="Followers gained" Binding="{Binding FollowersGained, StringFormat=N0}" Width="120" />
+                            <DataGridTextColumn Header="Subscribers gained" Binding="{Binding SubscribersGained, StringFormat=N0}" Width="130" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

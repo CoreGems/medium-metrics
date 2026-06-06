@@ -177,6 +177,14 @@ public partial class App : Application
         win.ShowDialog();
     }
 
+    /// <summary>Opens the Reports dashboard over the live story collection.</summary>
+    public void ShowReports(Window owner)
+    {
+        var win = new ReportsWindow(_vm.Stories, FetchStoryDetailAsync) { Owner = owner };
+        win.Show();
+        win.Activate();
+    }
+
     /// <summary>
     /// Opens the per-story dashboard. The whole ordered list is passed so the
     /// popup can page through stories (Prev/Next) in the list's current sort order.
