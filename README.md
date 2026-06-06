@@ -36,6 +36,12 @@ this keeps a private "black box recorder" of them on your machine.
 ```
 The result is a self-contained executable; no separate .NET install needed.
 
+### Start Menu shortcut
+```powershell
+.\install_shortcut.ps1              # builds the exe if needed, adds a Start Menu entry
+```
+Then find **Medium Metrics** in the Start Menu / Windows search (and pin it).
+
 ## First run
 
 1. Launch the app. It starts in **demo mode** with sample data so you can see the
