@@ -8,7 +8,7 @@ quick smoke test. Pure standard library — no `pip install` needed.
 Usage:
     python demo_api.py --key <API_KEY>
     python demo_api.py                 # reads the key from the MM_API_KEY env var
-    python demo_api.py --port 8765 --account @alex
+    python demo_api.py --port 8780 --account @alex
 
 Get the key from the app: Settings -> Local API -> Copy key, and make sure the API is
 enabled and the app is running. See OPENAI_CUSTOM_GPT.md.
@@ -62,7 +62,7 @@ def show(title, status, body):
 def main():
     ap = argparse.ArgumentParser(description="Demo the Medium Metrics local API.")
     ap.add_argument("--host", default="localhost")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=8780)
     ap.add_argument(
         "--key",
         default=os.environ.get("MM_API_KEY"),

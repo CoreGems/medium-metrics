@@ -46,6 +46,7 @@ public partial class SettingsWindow : Window
     private void OnApiEnabledClick(object sender, RoutedEventArgs e)
     {
         _app.SetApiEnabled(ApiEnabledCheck.IsChecked == true);
+        ApiPortBox.Text = _app.ApiPort.ToString(); // may auto-change if the chosen port was busy
         UpdateApiStatus();
     }
 
@@ -54,6 +55,7 @@ public partial class SettingsWindow : Window
         if (int.TryParse(ApiPortBox.Text, out var port) && port is > 0 and < 65536)
         {
             _app.SetApiPort(port);
+            ApiPortBox.Text = _app.ApiPort.ToString(); // reflect the actual port (may have auto-changed)
             UpdateApiStatus();
         }
         else

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Windows;
 using MediumMetrics.Models;
 using MediumMetrics.Services;
@@ -349,20 +351,62 @@ public partial class App : Application
     private void StartApi()
     {
         if (_api is not null) return;
-        try
+
+        GetOrCreateApiKey(); // ensure a key exists before accepting any request
+        var handler = new ApiRequestHandler(new DiskApiDataSource(VersionString()), () => _apiKey);
+
+        int configured = _settings.ApiPort;
+        int port = configured;
+        Exception? lastError = null;
+
+        // Try the configured port; if it's busy (e.g. another service owns it), fall back to an
+        // OS-assigned free port and PERSIST it — so the port stays stable across runs (the tunnel
+        // / GPT Action depend on that), but a conflict never leaves the API dead.
+        for (int attempt = 0; attempt < 4; attempt++)
         {
-            GetOrCreateApiKey(); // ensure a key exists before accepting any request
-            var handler = new ApiRequestHandler(new DiskApiDataSource(VersionString()), () => _apiKey);
-            _api = new ApiServer(handler, _settings.ApiPort);
-            _api.Start();
+            try
+            {
+                var server = new ApiServer(handler, port);
+                server.Start();
+                _api = server;
+                if (port != configured)
+                {
+                    _settings.ApiPort = port;
+                    SettingsStore.Save(_settings);
+                    Log.Info($"Local API: configured port {configured} was busy; using {port} instead.");
+                }
+                else
+                {
+                    Log.Info($"Local API on port {port}.");
+                }
+                return;
+            }
+            catch (HttpListenerException ex)
+            {
+                lastError = ex;
+                port = FindFreeLoopbackPort(); // OS-assigned free port for the next attempt
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                break;
+            }
         }
-        catch (Exception ex)
-        {
-            Log.Error("Failed to start local API", ex);
-            _api = null;
-            MessageBox.Show($"Could not start the local API on port {_settings.ApiPort}:\n{ex.Message}",
-                "Local API", MessageBoxButton.OK, MessageBoxImage.Warning);
-        }
+
+        _api = null;
+        Log.Error("Failed to start local API", lastError!);
+        MessageBox.Show($"Could not start the local API:\n{lastError?.Message}",
+            "Local API", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>An OS-assigned free loopback TCP port, used when the configured API port is busy.</summary>
+    private static int FindFreeLoopbackPort()
+    {
+        var probe = new TcpListener(IPAddress.Loopback, 0);
+        probe.Start();
+        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
     }
 
     private void StopApi()

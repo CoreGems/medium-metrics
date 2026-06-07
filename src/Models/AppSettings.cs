@@ -50,8 +50,8 @@ public sealed class AppSettings
     /// </summary>
     public bool ApiEnabled { get; set; }
 
-    /// <summary>Loopback port the local API binds to when enabled.</summary>
-    public int ApiPort { get; set; } = 8765;
+    /// <summary>Loopback port the local API binds to when enabled. Default avoids the common 8765.</summary>
+    public int ApiPort { get; set; } = 8780;
 
     // Derived file paths — not serialized, just convenient.
     /// <summary>Root holding every account's isolated folder: <c>{DataDirectory}\accounts</c>.</summary>

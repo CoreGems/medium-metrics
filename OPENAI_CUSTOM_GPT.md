@@ -99,7 +99,7 @@ enable it.** This is an additive, opt-in convenience, not a default behaviour.
    │  Public HTTPS ingress        │   Cloudflare Tunnel (cloudflared)
    │  https://you.example.dev     │   (stable hostname → your PC)
    └──────────────┬──────────────┘
-                  │  forwards to 127.0.0.1:8765
+                  │  forwards to 127.0.0.1:8780
                   ▼
    ┌─────────────────────────────────────────────────────────────┐
    │  Medium Metrics.exe  (only while the app is open)             │
@@ -592,7 +592,7 @@ Cloudflare edge        ── TLS terminated here
   │  proxied down the existing outbound tunnel
   ▼
 cloudflared (on your PC)
-  │  http://localhost:8765/v1/summary        ── plain HTTP, loopback only
+  │  http://localhost:8780/v1/summary        ── plain HTTP, loopback only
   ▼
 Medium Metrics.exe → ApiServer (HttpListener) → reads latest.json / report.csv
 ```
@@ -618,7 +618,7 @@ tunnel: <TUNNEL-UUID>
 credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL-UUID>.json
 ingress:
   - hostname: metrics.example.dev
-    service: http://localhost:8765      # the app's ApiServer port
+    service: http://localhost:8780      # the app's ApiServer port
   - service: http_status:404            # required catch-all
 ```
 
@@ -638,20 +638,20 @@ One command, instant HTTPS — but the hostname is **random and changes every ru
 you must re-paste the Action URL each time:
 
 ```powershell
-cloudflared tunnel --url http://localhost:8765
+cloudflared tunnel --url http://localhost:8780
 # → prints https://<random-words>.trycloudflare.com
 ```
 
 ### "App closed" behaviour — a clean signal, not a bug
 
 If `cloudflared` runs as a service but the app isn't open, nothing is listening on
-`:8765`, so Cloudflare returns **502 Bad Gateway**. The GPT instructions (§9) should
+`:8780`, so Cloudflare returns **502 Bad Gateway**. The GPT instructions (§9) should
 read 502/503 as *"the Medium Metrics app isn't running — open it and click Refresh."*
 Closing the app is therefore an instant way to revoke access.
 
 ### Other tunnels (if you don't use Cloudflare)
 
-ngrok (`ngrok http 8765`) or Tailscale Funnel (`tailscale funnel 8765`) work too — the
+ngrok (`ngrok http 8780`) or Tailscale Funnel (`tailscale funnel 8780`) work too — the
 same single-base-URL caveat applies. A VPS that hosts/replicates the API would be
 always-on but **defeats local-first** (your data would live off your PC) — out of scope.
 
@@ -662,8 +662,8 @@ always-on but **defeats local-first** (your data would live off your PC) — out
 ### Also usable locally (no tunnel)
 
 The tunnel exists **only** so OpenAI's cloud can reach the server. The listener binds
-to `127.0.0.1:8765`, so **any process on your PC can call it directly** at
-`http://localhost:8765/v1/...` with no tunnel running at all:
+to `127.0.0.1:8780`, so **any process on your PC can call it directly** at
+`http://localhost:8780/v1/...` with no tunnel running at all:
 
 - `curl` / PowerShell `Invoke-RestMethod` for quick checks.
 - Local scripts, exports, dashboards (Excel / Power Query, Grafana, …).
@@ -738,9 +738,10 @@ Defense in depth, smallest-blast-radius first:
   `Reports.*` functions. The account list comes from `SettingsStore.Load()`. No new
   persistence.
 - **Lifecycle & UI:** a **Settings** toggle "Enable local API for Custom GPT," a port
-  field (default `8765`), a generated key (Copy / Regenerate), a running/stopped
+  field (default `8780`), a generated key (Copy / Regenerate), a running/stopped
   indicator, and the §2 exposure warning shown on enable. Start/stop the listener with
-  the toggle; stop on app exit.
+  the toggle; stop on app exit. If the configured port is busy, bind a free one, persist
+  it, and reflect it in the port box + base-URL line (so it's never a hard failure).
 - **Key:** generate with `RandomNumberGenerator`; persist via `SecretStore`
   (DPAPI) as `apikey.bin` — **not** in `settings.json` (see [§7](#7-authentication)).
 - **Threading:** run the accept loop on a background thread. Every endpoint is a file
@@ -784,7 +785,9 @@ Defense in depth, smallest-blast-radius first:
   tokens on big lists? Revisit if story lists strain the Action response budget.
 - **`freeLink` field:** include the Freedium mirror link or drop it (third-party
   dependency)? Default = include, clearly labelled.
-- **Port default:** `8765` unless taken.
+- **Port:** default `8780`; if it's busy at startup the app binds an OS-assigned free
+  port instead, then **persists + shows it** (stable across runs — never randomized per
+  launch, so the tunnel/GPT Action stay valid). If a fallback happens, update your tunnel.
 
 ---
 

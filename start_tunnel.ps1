@@ -28,7 +28,7 @@
 
 .PARAMETER Port
     Local API port to probe (and, with -Quick, to forward to). Default: the app's
-    ApiPort from settings.json, else 8765.
+    ApiPort from settings.json, else 8780.
 
 .PARAMETER Quick
     Use an ephemeral quick tunnel (random *.trycloudflare.com URL) instead of the named
@@ -57,7 +57,7 @@ if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
 # Resolve the port: an explicit -Port wins, else read ApiPort from the app's settings.json,
 # else fall back to the default. settings.json always lives in the default data folder.
 if ($Port -le 0) {
-    $Port = 8765
+    $Port = 8780
     $settingsPath = Join-Path $env:LOCALAPPDATA 'MediumMetrics\settings.json'
     if (Test-Path $settingsPath) {
         try {
