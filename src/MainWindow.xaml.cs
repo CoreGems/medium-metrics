@@ -45,7 +45,8 @@ public partial class MainWindow : Window
         if (!ReferenceEquals(DataContext, acct.Vm))
         {
             DataContext = acct.Vm;
-            ApplySavedSort(); // the new VM's grid needs the saved sort re-applied
+            ApplySavedSort();   // the new VM's grid needs the saved sort re-applied
+            ApplyStoryFilter(); // ...and the active filter (the view was rebuilt on rebind)
         }
     }
 
@@ -54,6 +55,40 @@ public partial class MainWindow : Window
     {
         var ctx = _app.AddAccount(this);
         if (ctx is not null) AccountSwitcher.SelectedItem = ctx;
+    }
+
+    private void OnStorySearchChanged(object sender, TextChangedEventArgs e)
+    {
+        ApplyStoryFilter();
+        if (StorySearchClear is not null)
+            StorySearchClear.Visibility = string.IsNullOrEmpty(StorySearch.Text)
+                ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnStorySearchClear(object sender, RoutedEventArgs e)
+    {
+        StorySearch.Clear();   // fires TextChanged -> filter cleared + button hidden
+        StorySearch.Focus();
+    }
+
+    private void OnStorySearchKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape) { StorySearch.Clear(); e.Handled = true; }
+    }
+
+    /// <summary>
+    /// Filters the stories grid by title or tag (case-insensitive). Applied to the
+    /// grid's view so it composes with the persisted sort; empty text shows all.
+    /// </summary>
+    private void ApplyStoryFilter()
+    {
+        if (StoriesGrid is null) return; // can fire during XAML init, before the grid exists
+        var text = StorySearch.Text?.Trim() ?? "";
+        StoriesGrid.Items.Filter = text.Length == 0
+            ? null
+            : o => o is StorySnapshot s
+                   && (s.Title.Contains(text, StringComparison.OrdinalIgnoreCase)
+                       || s.Tags.Any(t => t.Contains(text, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>Restores the persisted stories-list sort (column + direction) and its header arrow.</summary>
@@ -149,7 +184,7 @@ public partial class MainWindow : Window
 
     private static string BuildHistoryRowText(HistoryRow r) =>
         string.Join(Environment.NewLine,
-            $"Timestamp: {r.Timestamp:g}",
+            $"Timestamp: {r.Timestamp.LocalDateTime:g}",
             $"Followers: {r.Followers:N0}",
             $"Total views: {r.TotalViews:N0}",
             $"Total reads: {r.TotalReads:N0}",

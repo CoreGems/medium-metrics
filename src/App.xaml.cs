@@ -61,6 +61,9 @@ public partial class App : Application
     private void LoadAccounts()
     {
         AccountMigration.RunIfNeeded(_settings);
+        // Re-adopt any account folders on disk that the registry doesn't know about
+        // (e.g. if settings.json was lost/overwritten) so accounts are never orphaned.
+        AccountMigration.AdoptOrphans(_settings);
 
         if (_settings.Accounts.Count == 0)
         {
@@ -217,7 +220,8 @@ public partial class App : Application
     /// <summary>Opens the Reports dashboard over the active account's live story collection.</summary>
     public void ShowReports(Window owner)
     {
-        var win = new ReportsWindow(_active.Vm.Stories, FetchStoryDetailAsync) { Owner = owner };
+        var win = new ReportsWindow(_active.Vm.Stories, _active.Vm.History,
+            _settings.EarningsBaselineUsd, FetchStoryDetailAsync) { Owner = owner };
         win.Show();
         win.Activate();
     }

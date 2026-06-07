@@ -51,3 +51,14 @@ public sealed class TagFollowers
     public long FollowersGained { get; set; }
     public long SubscribersGained { get; set; }
 }
+
+/// <summary>
+/// One day on the earnings chart: the day's lifetime earnings total and the
+/// <see cref="Delta"/> earned that day (vs the prior day, or the baseline on day one).
+/// </summary>
+public sealed class DailyEarning
+{
+    public DateTime Day { get; set; }
+    public decimal Total { get; set; }
+    public decimal Delta { get; set; }
+}

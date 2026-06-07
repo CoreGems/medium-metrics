@@ -40,6 +40,9 @@ public sealed class AppSettings
     public string? StoriesSortColumn { get; set; } = "Views";
     public bool StoriesSortDescending { get; set; } = true;
 
+    /// <summary>"Ground zero" for the earnings delta chart (USD): daily gains are shown above this.</summary>
+    public decimal EarningsBaselineUsd { get; set; } = 412.80m;
+
     // Derived file paths — not serialized, just convenient.
     /// <summary>Root holding every account's isolated folder: <c>{DataDirectory}\accounts</c>.</summary>
     [JsonIgnore] public string AccountsRoot => Path.Combine(DataDirectory, "accounts");

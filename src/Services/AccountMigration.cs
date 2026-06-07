@@ -54,6 +54,35 @@ public static class AccountMigration
         return acct;
     }
 
+    /// <summary>
+    /// Recovers account folders that exist on disk but are missing from the registry
+    /// (e.g. settings.json was lost or overwritten by an older build). Adds one
+    /// <see cref="AccountRef"/> per accounts/&lt;id&gt;/ folder, labelled from its
+    /// latest.json. Returns how many were adopted; the caller persists settings.
+    /// </summary>
+    public static int AdoptOrphans(AppSettings settings)
+    {
+        if (!Directory.Exists(settings.AccountsRoot)) return 0;
+
+        var known = new HashSet<string>(settings.Accounts.Select(a => a.Id), StringComparer.OrdinalIgnoreCase);
+        int added = 0;
+        foreach (var dir in Directory.GetDirectories(settings.AccountsRoot))
+        {
+            var id = Path.GetFileName(dir);
+            if (string.IsNullOrEmpty(id) || known.Contains(id)) continue;
+
+            var snapshot = new ReportStore(new AppSettings { DataDirectory = dir }).LoadLatest();
+            string label = NonBlank(snapshot?.AccountName) ?? Prefixed(snapshot?.AccountUsername, "@") ?? id;
+            settings.Accounts.Add(new AccountRef { Id = id, Label = label });
+            added++;
+            Log.Info($"Adopted orphaned account folder accounts\\{id} (label '{label}').");
+        }
+
+        if (added > 0 && string.IsNullOrWhiteSpace(settings.ActiveAccountId))
+            settings.ActiveAccountId = settings.Accounts[0].Id;
+        return added;
+    }
+
     private static string? NonBlank(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
     private static string? Prefixed(string? s, string prefix) =>

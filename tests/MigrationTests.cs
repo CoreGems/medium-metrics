@@ -58,6 +58,26 @@ public class MigrationTests
     }
 
     [Fact]
+    public void AdoptOrphans_RecoversAccountFoldersMissingFromRegistry()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "MediumMetricsTests", Guid.NewGuid().ToString("N"));
+        var acctDir = Path.Combine(root, "accounts", "uid-xyz");
+        Directory.CreateDirectory(acctDir);
+        File.WriteAllText(Path.Combine(acctDir, "latest.json"), "{\"AccountUsername\":\"alexbuzunov\"}");
+        var settings = new AppSettings { DataDirectory = root }; // registry is empty / lost
+
+        var added = AccountMigration.AdoptOrphans(settings);
+
+        Assert.Equal(1, added);
+        var acct = Assert.Single(settings.Accounts);
+        Assert.Equal("uid-xyz", acct.Id);
+        Assert.Equal("@alexbuzunov", acct.Label);            // recovered from latest.json
+        Assert.Equal("uid-xyz", settings.ActiveAccountId);
+
+        Assert.Equal(0, AccountMigration.AdoptOrphans(settings)); // idempotent
+    }
+
+    [Fact]
     public void RunIfNeeded_IsIdempotent_AndNoOpWithoutLegacyData()
     {
         var settings = LegacyInstall(out _);

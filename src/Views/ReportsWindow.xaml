@@ -108,6 +108,18 @@
                     </DataGrid>
                 </DockPanel>
             </TabItem>
+
+            <!-- Earnings: per-day delta line chart from the append-only history -->
+            <TabItem Header="Earnings">
+                <DockPanel Margin="0,8,0,0">
+                    <TextBlock x:Name="EarningsSummary" DockPanel.Dock="Top" Foreground="#777"
+                               FontSize="12" Margin="0,0,0,6" TextWrapping="Wrap" />
+                    <Border BorderBrush="#EEE" BorderThickness="1" Background="White">
+                        <Canvas x:Name="EarningsCanvas" ClipToBounds="True"
+                                SizeChanged="OnEarningsCanvasSizeChanged" />
+                    </Border>
+                </DockPanel>
+            </TabItem>
         </TabControl>
     </DockPanel>
 </Window>

@@ -100,6 +100,30 @@ public static class Reports
     }
 
     /// <summary>
+    /// Per-day earnings from the append-only history: the latest lifetime total seen
+    /// each local day, and the amount earned that day (today's total minus the prior
+    /// day's, with day one measured from <paramref name="baseline"/>). Days with no
+    /// refresh simply don't appear. Used by the earnings delta chart.
+    /// </summary>
+    public static IReadOnlyList<DailyEarning> DailyEarnings(IEnumerable<HistoryRow> history, decimal baseline)
+    {
+        var perDay = history
+            .GroupBy(r => r.Timestamp.ToLocalTime().Date)
+            .Select(g => new { Day = g.Key, Total = g.OrderBy(r => r.Timestamp).Last().TotalEarningsUsd })
+            .OrderBy(x => x.Day)
+            .ToList();
+
+        var result = new List<DailyEarning>(perDay.Count);
+        decimal prev = baseline;
+        foreach (var d in perDay)
+        {
+            result.Add(new DailyEarning { Day = d.Day, Total = d.Total, Delta = d.Total - prev });
+            prev = d.Total;
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Per-tag follower/subscriber gains. Needs a per-story detail (keyed by
     /// <see cref="StorySnapshot.StoryId"/>); stories without a fetched detail are
     /// skipped so partial loads still produce a usable report.
