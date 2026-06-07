@@ -20,11 +20,13 @@ public partial class SettingsWindow : Window
 
     private void Refresh()
     {
+        // The dialog acts on the ACTIVE account (sign in / clear / folder are per-account).
+        var acct = _app.Active;
         SessionStatus.Text = _app.HasSession
-            ? "Signed in to Medium (session stored, encrypted)."
-            : "Not signed in — showing demo data.";
+            ? $"Signed in as @{acct.Config.Label} (session stored, encrypted)."
+            : $"'{acct.Config.Label}' is not signed in — showing demo data.";
         ClearButton.IsEnabled = _app.HasSession;
-        DataFolderText.Text = _app.Settings.DataDirectory;
+        DataFolderText.Text = acct.Config.Root;
     }
 
     private void OnSignInClick(object sender, RoutedEventArgs e)
@@ -38,7 +40,7 @@ public partial class SettingsWindow : Window
         Refresh();
     }
 
-    private void OnOpenFolderClick(object sender, RoutedEventArgs e) => _app.OpenDataFolder();
+    private void OnOpenFolderClick(object sender, RoutedEventArgs e) => _app.OpenDataFolder(_app.Active.Config.Root);
 
     private async void OnCaptureClick(object sender, RoutedEventArgs e) => await _app.CaptureStatsDebugAsync();
 

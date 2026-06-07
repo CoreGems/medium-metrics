@@ -14,6 +14,9 @@ public sealed class StatsSnapshot
     /// <summary>Medium handle this snapshot was captured for (no leading @).</summary>
     public string? AccountUsername { get; set; }
 
+    /// <summary>Medium display name (e.g. "Alex Buz"), if exposed by /me. Friendlier than the handle.</summary>
+    public string? AccountName { get; set; }
+
     public IReadOnlyList<StorySnapshot> Stories { get; set; } = new List<StorySnapshot>();
 
     public long TotalViews => Stories.Sum(s => s.Views);

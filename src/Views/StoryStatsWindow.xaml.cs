@@ -13,15 +13,17 @@ namespace MediumMetrics.Views;
 /// </summary>
 public partial class StoryStatsWindow : Window
 {
-    private readonly App _app;
+    private readonly Func<string, CancellationToken, Task<StoryDetail>> _fetchDetail;
     private readonly IReadOnlyList<StorySnapshot> _stories;
     private int _index;
     private StorySnapshot _story = null!;
     private StoryDetail? _detail;
 
-    public StoryStatsWindow(App app, IReadOnlyList<StorySnapshot> stories, int index)
+    public StoryStatsWindow(
+        Func<string, CancellationToken, Task<StoryDetail>> fetchDetail,
+        IReadOnlyList<StorySnapshot> stories, int index)
     {
-        _app = app;
+        _fetchDetail = fetchDetail;
         _stories = stories;
         InitializeComponent();
         SourceInitialized += (_, _) => PositionBesideOwner();
@@ -108,20 +110,18 @@ public partial class StoryStatsWindow : Window
         DetailStatus.Text = "Loading details…";
         try
         {
-            var d = await _app.FetchStoryDetailAsync(postId);
+            var d = await _fetchDetail(postId, CancellationToken.None);
             if (!string.Equals(_story.StoryId, postId, StringComparison.Ordinal))
                 return; // navigated to another story while this was in flight
 
             _detail = d;
 
             // The per-story funnel is the live, authoritative views/reads — refresh the
-            // headline tiles from it (the list-query values can lag). Guard on > 0.
-            if (d.ViewersCount > 0)
-            {
-                ViewsText.Text = d.ViewersCount.ToString("N0");
-                ReadsText.Text = d.ReadersCount.ToString("N0");
-                RatioText.Text = ((double)d.ReadersCount / d.ViewersCount).ToString("P0");
-            }
+            // headline tiles from it (the list-query values can lag).
+            var (views, reads, ratio) = EffectiveStats();
+            ViewsText.Text = views.ToString("N0");
+            ReadsText.Text = reads.ToString("N0");
+            RatioText.Text = ratio.ToString("P0");
 
             FollowersText.Text = $"{d.FollowersGained:N0} ({Signed(d.NetFollowerCount)})";
             SubscribersText.Text = $"{d.SubscribersGained:N0} ({Signed(d.NetSubscriberCount)})";
@@ -148,6 +148,18 @@ public partial class StoryStatsWindow : Window
 
     private static string Signed(long n) => n >= 0 ? $"+{n}" : n.ToString();
 
+    /// <summary>
+    /// The headline views/reads/ratio to show: the per-story funnel (authoritative,
+    /// live) when loaded and non-zero, else the snapshot's list-query values.
+    /// </summary>
+    private (long views, long reads, double ratio) EffectiveStats()
+    {
+        var d = _detail;
+        long views = d is { ViewersCount: > 0 } ? d.ViewersCount : _story.Views;
+        long reads = d is { ViewersCount: > 0 } ? d.ReadersCount : _story.Reads;
+        return (views, reads, views > 0 ? (double)reads / views : 0d);
+    }
+
     private void OnPrevClick(object sender, RoutedEventArgs e) => ShowStory(_index - 1);
 
     private void OnNextClick(object sender, RoutedEventArgs e) => ShowStory(_index + 1);
@@ -173,9 +185,7 @@ public partial class StoryStatsWindow : Window
     {
         var s = _story;
         var d = _detail;
-        long views = d is { ViewersCount: > 0 } ? d.ViewersCount : s.Views;
-        long reads = d is { ViewersCount: > 0 } ? d.ReadersCount : s.Reads;
-        double ratio = views > 0 ? (double)reads / views : 0;
+        var (views, reads, ratio) = EffectiveStats();
 
         var sb = new StringBuilder();
         sb.AppendLine(s.Title);

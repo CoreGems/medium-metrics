@@ -23,12 +23,6 @@ public sealed class StorySnapshot
     /// <summary>Total claps (from the Post.clapCount field).</summary>
     public long Claps { get; set; }
 
-    /// <summary>Views from logged-in Medium members (from the per-story detail; null if not loaded).</summary>
-    public long? MemberViews { get; set; }
-
-    /// <summary>Views from non-members (from the per-story detail; null if not loaded).</summary>
-    public long? NonMemberViews { get; set; }
-
     /// <summary>Lifetime earnings for this story, in USD.</summary>
     public decimal EarningsUsd { get; set; }
 

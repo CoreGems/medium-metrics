@@ -35,6 +35,11 @@
                     </TextBlock>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox x:Name="AccountSwitcher" MinWidth="110" Margin="0,0,6,0" VerticalAlignment="Center"
+                              DisplayMemberPath="Label" SelectionChanged="OnAccountChanged"
+                              ToolTip="Switch Medium account" />
+                    <Button Content="＋" Click="OnAddAccountClick" Padding="8,6" Margin="0,0,12,0"
+                            ToolTip="Add another Medium account" />
                     <TextBlock Text="{Binding AccountText}" Foreground="#9ACD9A" VerticalAlignment="Center"
                                Margin="0,0,10,0" FontSize="12"
                                Visibility="{Binding IsSignedIn, Converter={StaticResource BoolVis}}" />

@@ -53,21 +53,22 @@ public sealed class MediumStatsClient : IMediumStatsClient
 
     public async Task<StatsSnapshot> FetchAsync(CancellationToken ct = default)
     {
-        var (followers, username) = await FetchProfileAsync(ct);
+        var (followers, username, name) = await FetchProfileAsync(ct);
         var stories = await FetchStoriesAsync(username, ct);
 
         return new StatsSnapshot
         {
             Followers = followers,
             AccountUsername = username,
+            AccountName = name,
             Stories = stories,
             // Caller is the source of truth for "now"; default to a parse-stable value.
             Timestamp = default,
         };
     }
 
-    /// <summary>Reads followers + username from /me?format=json (still returns JSON).</summary>
-    private async Task<(long followers, string username)> FetchProfileAsync(CancellationToken ct)
+    /// <summary>Reads followers + username + display name from /me?format=json (still returns JSON).</summary>
+    private async Task<(long followers, string username, string? name)> FetchProfileAsync(CancellationToken ct)
     {
         using var doc = await GetJsonAsync(MeUrl, ct);
         var root = doc.RootElement;
@@ -77,6 +78,11 @@ public sealed class MediumStatsClient : IMediumStatsClient
             username = u.GetString() ?? "";
         if (username.Length == 0)
             throw new MediumStatsException("Could not determine your Medium username from /me.");
+
+        // Display name (e.g. "Alex Buz") — optional; used as a friendlier account label.
+        string? name = null;
+        if (TryGetPath(root, out var nm, "payload", "user", "name") && nm.ValueKind == JsonValueKind.String)
+            name = nm.GetString();
 
         string userId = "";
         if (TryGetPath(root, out var uid, "payload", "user", "userId") && uid.ValueKind == JsonValueKind.String)
@@ -93,7 +99,7 @@ public sealed class MediumStatsClient : IMediumStatsClient
             followers = GetLong(stat, "usersFollowedByCount");
         }
 
-        return (followers, username);
+        return (followers, username, name);
     }
 
     /// <summary>

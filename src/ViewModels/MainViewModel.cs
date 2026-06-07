@@ -44,6 +44,12 @@ public partial class MainViewModel : ObservableObject
     /// <summary>Shown in the header when signed in, e.g. "Signed in as @handle".</summary>
     [ObservableProperty] private string _accountText = "";
 
+    /// <summary>Discovered Medium handle (no leading @), set on refresh. Used to label the account.</summary>
+    [ObservableProperty] private string? _accountUsername;
+
+    /// <summary>Discovered Medium display name (e.g. "Alex Buz"), set on refresh. Preferred account label.</summary>
+    [ObservableProperty] private string? _accountName;
+
     public MainViewModel(IMediumStatsClient client, ReportStore store)
     {
         Client = client;
@@ -117,7 +123,12 @@ public partial class MainViewModel : ObservableObject
         TotalImpressions = snapshot.TotalImpressions;
         TotalEarnings = snapshot.TotalEarningsUsd;
         if (!string.IsNullOrEmpty(snapshot.AccountUsername))
+        {
+            AccountUsername = snapshot.AccountUsername;
             AccountText = $"Signed in as @{snapshot.AccountUsername}";
+        }
+        if (!string.IsNullOrEmpty(snapshot.AccountName))
+            AccountName = snapshot.AccountName;
         LatestTimestampText = snapshot.Timestamp == default
             ? "No data yet"
             : snapshot.Timestamp.ToLocalTime().ToString("g");

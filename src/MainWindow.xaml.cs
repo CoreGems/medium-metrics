@@ -24,7 +24,36 @@ public partial class MainWindow : Window
         InitializeComponent();
         DataContext = viewModel;
         ApplyBounds(app.Settings.Window);
-        Loaded += (_, _) => ApplySavedSort();
+        Loaded += (_, _) => { ApplySavedSort(); InitAccountSwitcher(); };
+    }
+
+    private bool _switcherReady;
+
+    /// <summary>Fills the account-switcher dropdown and selects the active account.</summary>
+    private void InitAccountSwitcher()
+    {
+        AccountSwitcher.ItemsSource = _app.Accounts;
+        AccountSwitcher.SelectedItem = _app.Active;
+        _switcherReady = true; // ignore the selection events fired while populating
+    }
+
+    /// <summary>Switches the active account and rebinds the window to its view model.</summary>
+    private void OnAccountChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_switcherReady || AccountSwitcher.SelectedItem is not AccountContext acct) return;
+        _app.SwitchTo(acct);
+        if (!ReferenceEquals(DataContext, acct.Vm))
+        {
+            DataContext = acct.Vm;
+            ApplySavedSort(); // the new VM's grid needs the saved sort re-applied
+        }
+    }
+
+    /// <summary>Signs into a new Medium account in its own profile and selects it.</summary>
+    private void OnAddAccountClick(object sender, RoutedEventArgs e)
+    {
+        var ctx = _app.AddAccount(this);
+        if (ctx is not null) AccountSwitcher.SelectedItem = ctx;
     }
 
     /// <summary>Restores the persisted stories-list sort (column + direction) and its header arrow.</summary>

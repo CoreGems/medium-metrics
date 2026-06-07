@@ -33,5 +33,27 @@ public class SettingsTests
         var settings = new AppSettings { DataDirectory = @"C:\tmp\mm" };
         Assert.Equal(@"C:\tmp\mm\report.csv", settings.ReportCsvPath);
         Assert.Equal(@"C:\tmp\mm\latest.json", settings.LatestJsonPath);
+        Assert.Equal(@"C:\tmp\mm\accounts", settings.AccountsRoot);
+    }
+
+    [Fact]
+    public void AccountRegistry_RoundTrips()
+    {
+        var settings = new AppSettings
+        {
+            ActiveAccountId = "uid-a",
+            Accounts =
+            {
+                new AccountRef { Id = "uid-a", Label = "@alex" },
+                new AccountRef { Id = "uid-b", Label = "@bob" },
+            },
+        };
+
+        var round = JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(settings))!;
+
+        Assert.Equal("uid-a", round.ActiveAccountId);
+        Assert.Equal(2, round.Accounts.Count);
+        Assert.Equal("uid-b", round.Accounts[1].Id);
+        Assert.Equal("@bob", round.Accounts[1].Label);
     }
 }

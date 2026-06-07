@@ -10,8 +10,20 @@ namespace MediumMetrics.Models;
 /// </summary>
 public sealed class AppSettings
 {
-    /// <summary>Medium username/handle (display only; auth is cookie-based).</summary>
+    /// <summary>
+    /// Legacy single-account handle (display only). Kept so the one-time migration
+    /// can detect a pre-multi-account install; new code uses <see cref="Accounts"/>.
+    /// </summary>
     public string? AccountId { get; set; }
+
+    /// <summary>
+    /// Registry of known Medium accounts. Each has its own data folder under
+    /// <c>{DataDirectory}\accounts\{Id}</c> (see <see cref="AccountConfig"/>).
+    /// </summary>
+    public List<AccountRef> Accounts { get; set; } = new();
+
+    /// <summary>Id of the account shown on launch / last selected in the switcher.</summary>
+    public string? ActiveAccountId { get; set; }
 
     /// <summary>Timestamp of the most recent successful refresh (UTC), if any.</summary>
     public DateTimeOffset? LastRefresh { get; set; }
@@ -29,6 +41,8 @@ public sealed class AppSettings
     public bool StoriesSortDescending { get; set; } = true;
 
     // Derived file paths — not serialized, just convenient.
+    /// <summary>Root holding every account's isolated folder: <c>{DataDirectory}\accounts</c>.</summary>
+    [JsonIgnore] public string AccountsRoot => Path.Combine(DataDirectory, "accounts");
     [JsonIgnore] public string ReportCsvPath => Path.Combine(DataDirectory, "report.csv");
     [JsonIgnore] public string LatestJsonPath => Path.Combine(DataDirectory, "latest.json");
     [JsonIgnore] public string SessionPath => Path.Combine(DataDirectory, "session.bin");
@@ -46,6 +60,16 @@ public sealed class AppSettings
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "MediumMetrics");
+}
+
+/// <summary>A known Medium account in the registry. Folder is <c>accounts\{Id}</c>.</summary>
+public sealed class AccountRef
+{
+    /// <summary>Stable key (Medium uid) — also the account's folder name.</summary>
+    public string Id { get; set; } = "";
+
+    /// <summary>Display handle shown in the switcher; editable, may change.</summary>
+    public string Label { get; set; } = "";
 }
 
 /// <summary>Persisted main-window placement.</summary>

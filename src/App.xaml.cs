@@ -1,41 +1,41 @@
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
-using MediumMetrics.Auth;
 using MediumMetrics.Models;
 using MediumMetrics.Services;
-using MediumMetrics.ViewModels;
 using MediumMetrics.Views;
 
 namespace MediumMetrics;
 
 /// <summary>
-/// Composition root. Builds settings, session, store and the main view model,
-/// then shows the window. Starts in demo mode (fake data) until the user signs
-/// in, so the app is always runnable.
+/// Composition root. Loads the account registry (migrating a legacy single-account
+/// install on first run), builds one <see cref="AccountContext"/> per account, and
+/// shows the main window bound to the active account. Each account starts in demo
+/// mode (fake data) until signed in, so the app is always runnable.
 /// </summary>
 public partial class App : Application
 {
     private AppSettings _settings = null!;
-    private SessionManager _sessions = null!;
-    private ReportStore _store = null!;
-    private MainViewModel _vm = null!;
-    private MediumBrowser? _browser;
+    private readonly ObservableCollection<AccountContext> _accounts = new();
+    private AccountContext _active = null!;
 
     public AppSettings Settings => _settings;
-    public bool HasSession => _sessions.HasSession;
+    public IReadOnlyList<AccountContext> Accounts => _accounts;
+    public AccountContext Active => _active;
+    public bool HasSession => _active.HasSession;
 
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
 
-        // A hidden helper browser window stays open for the app's lifetime, so
+        // A hidden helper browser window can stay open per signed-in account, so
         // shut down when the MAIN window closes (not when the last window closes).
         ShutdownMode = ShutdownMode.OnMainWindowClose;
 
         _settings = SettingsStore.Load();
         Directory.CreateDirectory(_settings.DataDirectory);
-        Log.Init(_settings.LogPath);
+        Log.Init(_settings.LogPath);   // app.log stays global (one log for the whole app)
         Log.Info("App starting.");
 
         // Surface any otherwise-silent UI-thread exception.
@@ -47,122 +47,159 @@ public partial class App : Application
             args.Handled = true;
         };
 
-        _sessions = new SessionManager(_settings);
-        _store = new ReportStore(_settings);
+        LoadAccounts();
 
-        var session = _sessions.Load();
-        _vm = new MainViewModel(BuildClient(session), _store);
-        _vm.AuthExpired += OnAuthExpired;
-        _vm.IsSignedIn = session is not null;
-        if (session is null)
-            _vm.StatusMessage = "Demo mode — showing sample data. Sign in to load your real Medium stats.";
-        else
-            _vm.AccountText = "Signed in";
-
-        MainWindow = new MainWindow(this, _vm);
+        MainWindow = new MainWindow(this, _active.Vm);
         MainWindow.Show();
     }
 
-    private IMediumStatsClient BuildClient(MediumSession? session)
+    /// <summary>
+    /// Migrates a legacy single-account install if needed, then builds one
+    /// <see cref="AccountContext"/> per registered account and picks the active one.
+    /// A truly fresh install gets one "default" account so the app opens in demo mode.
+    /// </summary>
+    private void LoadAccounts()
     {
-        if (session is null) return new FakeMediumStatsClient();
-        // Issue requests through a real (hidden) browser so Cloudflare clearance applies.
-        _browser ??= new MediumBrowser(System.IO.Path.Combine(_settings.DataDirectory, "webview2"));
-        return new MediumStatsClient(_browser.FetchAsync, _browser.PostJsonAsync, _settings.LatestJsonPath + ".error");
+        AccountMigration.RunIfNeeded(_settings);
+
+        if (_settings.Accounts.Count == 0)
+        {
+            _settings.Accounts.Add(new AccountRef { Id = "default", Label = "account" });
+            _settings.ActiveAccountId = "default";
+        }
+
+        foreach (var aref in _settings.Accounts)
+            Register(new AccountContext(new AccountConfig(aref.Id, aref.Label, _settings.AccountsRoot)));
+
+        _active = _accounts.FirstOrDefault(a => a.Config.Id == _settings.ActiveAccountId) ?? _accounts[0];
+
+        // Persist the migration result + any labels the contexts resolved from latest.json.
+        PersistAccounts();
+    }
+
+    /// <summary>Adds a context to the live collection and keeps its label persisted.</summary>
+    private void Register(AccountContext ctx)
+    {
+        ctx.LabelChanged += (_, _) => PersistAccounts();
+        _accounts.Add(ctx);
+    }
+
+    /// <summary>Switches the active account and persists the choice.</summary>
+    public void SwitchTo(AccountContext account)
+    {
+        if (account == _active || !_accounts.Contains(account)) return;
+        _active = account;
+        _settings.ActiveAccountId = account.Config.Id;
+        SettingsStore.Save(_settings);
     }
 
     /// <summary>
-    /// Runs the interactive Medium login. On success, swaps the view model's
-    /// client to a real one bound to the captured session.
+    /// Adds another Medium account: signs into a fresh per-account profile, dedups by
+    /// Medium uid, registers it and makes it active. Returns the new context (or the
+    /// existing one on a duplicate), or null if the user cancelled the login.
+    /// </summary>
+    public AccountContext? AddAccount(Window owner)
+    {
+        var id = "acct-" + Guid.NewGuid().ToString("N")[..8];
+        var ctx = new AccountContext(new AccountConfig(id, "New account", _settings.AccountsRoot));
+        if (!ctx.SignIn(owner))
+        {
+            ctx.Dispose();
+            TryDeleteDirectory(ctx.Config.Root);
+            return null;
+        }
+
+        // Already added this Medium account? Switch to the existing one instead of duplicating.
+        var uid = ctx.Sessions.Current?.Uid;
+        var existing = uid is null ? null : _accounts.FirstOrDefault(a => a.Sessions.Current?.Uid == uid);
+        if (existing is not null)
+        {
+            ctx.Dispose();
+            TryDeleteDirectory(ctx.Config.Root);
+            MessageBox.Show("That Medium account is already added.", "Already added",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            SwitchTo(existing);
+            return existing;
+        }
+
+        Register(ctx);
+        _settings.Accounts.Add(new AccountRef { Id = id, Label = ctx.Config.Label });
+        _active = ctx;
+        _settings.ActiveAccountId = id;
+        SettingsStore.Save(_settings);
+
+        // Pull stats now so the account populates and its handle (switcher label) is discovered.
+        if (ctx.Vm.RefreshCommand.CanExecute(null))
+            _ = ctx.Vm.RefreshCommand.ExecuteAsync(null);
+        return ctx;
+    }
+
+    /// <summary>Copies each account's current label back into the registry and saves.</summary>
+    private void PersistAccounts()
+    {
+        foreach (var aref in _settings.Accounts)
+        {
+            var ctx = _accounts.FirstOrDefault(a => a.Config.Id == aref.Id);
+            if (ctx is not null) aref.Label = ctx.Config.Label;
+        }
+        _settings.ActiveAccountId = _active.Config.Id;
+        SettingsStore.Save(_settings);
+    }
+
+    private static void TryDeleteDirectory(string dir)
+    {
+        try { if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true); }
+        catch (Exception ex) { Log.Error($"Could not remove provisional account folder {dir}", ex); }
+    }
+
+    /// <summary>
+    /// Runs the interactive Medium login for the ACTIVE account. On success the
+    /// account's view model is swapped to a real client and a refresh is kicked off.
     /// </summary>
     public bool SignIn(Window owner)
     {
         try
         {
             Log.Info("Sign-in requested.");
-            var session = _sessions.LoginInteractive(owner);
-            if (session is null)
+            if (!_active.SignIn(owner))
             {
                 Log.Info("Sign-in cancelled or no session captured.");
-                _vm.StatusMessage = "Sign-in was cancelled.";
+                _active.Vm.StatusMessage = "Sign-in was cancelled.";
                 return false;
             }
 
-            _vm.Client = BuildClient(session);
-            _vm.IsSignedIn = true;
-            _vm.AccountText = "Signed in";
-            _vm.StatusMessage = "Signed in. Loading your stats…";
-            _vm.ErrorMessage = null;
+            _active.Vm.StatusMessage = "Signed in. Loading your stats…";
             Log.Info("Sign-in succeeded.");
             // Reflect the signed-in state immediately by pulling stats now.
-            if (_vm.RefreshCommand.CanExecute(null))
-                _ = _vm.RefreshCommand.ExecuteAsync(null);
+            if (_active.Vm.RefreshCommand.CanExecute(null))
+                _ = _active.Vm.RefreshCommand.ExecuteAsync(null);
             return true;
         }
         catch (Exception ex)
         {
             Log.Error("Sign-in failed", ex);
-            _vm.ErrorMessage = $"Sign-in failed: {ex.Message}";
+            _active.Vm.ErrorMessage = $"Sign-in failed: {ex.Message}";
             MessageBox.Show(ex.ToString(), "Sign-in failed",
                 MessageBoxButton.OK, MessageBoxImage.Error);
             return false;
         }
     }
 
-    /// <summary>Forgets the stored session and drops back to demo mode.</summary>
+    /// <summary>Forgets the active account's stored session and drops it back to demo mode.</summary>
     public void ClearSession()
     {
-        _sessions.Clear();
-        _vm.Client = new FakeMediumStatsClient();
-        _vm.IsSignedIn = false;
-        _vm.AccountText = "";
-        _vm.StatusMessage = "Signed out. Showing demo data — sign in to load your stats again.";
+        _active.Clear();
         Log.Info("Session cleared.");
     }
 
-    /// <summary>
-    /// Debug: capture the GraphQL traffic the stats page makes and save it to
-    /// graphql-capture.json for inspection (used to wire the real stats query).
-    /// </summary>
-    public async Task CaptureStatsDebugAsync()
+    /// <summary>Opens a data folder in Explorer (defaults to the global data root).</summary>
+    public void OpenDataFolder(string? path = null)
     {
         try
         {
-            if (!HasSession)
-            {
-                MessageBox.Show("Sign in first, then capture.", "Not signed in",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-            _browser ??= new MediumBrowser(Path.Combine(_settings.DataDirectory, "webview2"));
-            _vm.StatusMessage = "Capturing stats traffic… (about 10s)";
-            var json = await _browser.CaptureStatsAsync();
-            var path = Path.Combine(_settings.DataDirectory, "graphql-capture.json");
-            await File.WriteAllTextAsync(path, json);
-
-            // Also dump /me?format=json so we can locate the followers field.
-            var me = await _browser.FetchAsync("https://medium.com/me?format=json");
-            var mePath = Path.Combine(_settings.DataDirectory, "me-capture.json");
-            await File.WriteAllTextAsync(mePath, me.Body);
-
-            Log.Info($"Captured GraphQL ({json.Length} chars) and /me ({me.Body.Length} chars).");
-            _vm.StatusMessage = $"Saved captures to {_settings.DataDirectory}";
-            OpenDataFolder();
-        }
-        catch (Exception ex)
-        {
-            Log.Error("Stats capture failed", ex);
-            MessageBox.Show(ex.Message, "Capture failed", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    /// <summary>Opens the data folder in Explorer.</summary>
-    public void OpenDataFolder()
-    {
-        try
-        {
-            Directory.CreateDirectory(_settings.DataDirectory);
-            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{_settings.DataDirectory}\"") { UseShellExecute = true });
+            var dir = path ?? _settings.DataDirectory;
+            Directory.CreateDirectory(dir);
+            Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"") { UseShellExecute = true });
         }
         catch (Exception ex)
         {
@@ -177,33 +214,67 @@ public partial class App : Application
         win.ShowDialog();
     }
 
-    /// <summary>Opens the Reports dashboard over the live story collection.</summary>
+    /// <summary>Opens the Reports dashboard over the active account's live story collection.</summary>
     public void ShowReports(Window owner)
     {
-        var win = new ReportsWindow(_vm.Stories, FetchStoryDetailAsync) { Owner = owner };
+        var win = new ReportsWindow(_active.Vm.Stories, FetchStoryDetailAsync) { Owner = owner };
         win.Show();
         win.Activate();
     }
 
     /// <summary>
-    /// Opens the per-story dashboard. The whole ordered list is passed so the
-    /// popup can page through stories (Prev/Next) in the list's current sort order.
+    /// Opens the per-story dashboard for the active account. The whole ordered list
+    /// is passed so the popup can page through stories (Prev/Next) in sort order.
     /// </summary>
     public void ShowStoryDashboard(IReadOnlyList<StorySnapshot> stories, int index, Window owner)
     {
         if (stories.Count == 0) return;
-        var win = new StoryStatsWindow(this, stories, index) { Owner = owner };
+        var win = new StoryStatsWindow(FetchStoryDetailAsync, stories, index) { Owner = owner };
         win.Show();
         win.Activate();
     }
 
-    /// <summary>Fetches extended per-story stats for the dashboard.</summary>
+    /// <summary>Fetches extended per-story stats for the active account's dashboard.</summary>
     public Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
-        => _vm.Client.FetchStoryDetailAsync(postId, ct);
+        => _active.Vm.Client.FetchStoryDetailAsync(postId, ct);
 
     /// <summary>
-    /// Debug: capture the GraphQL traffic a single story's stats page makes and
-    /// save it to story-capture.json (used to wire member/non-member views).
+    /// Debug: capture the active account's stats GraphQL traffic and save it to
+    /// graphql-capture.json in that account's folder (used to wire the stats query).
+    /// </summary>
+    public async Task CaptureStatsDebugAsync()
+    {
+        try
+        {
+            if (!HasSession)
+            {
+                MessageBox.Show("Sign in first, then capture.", "Not signed in",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var browser = _active.EnsureBrowser();
+            _active.Vm.StatusMessage = "Capturing stats traffic… (about 10s)";
+            var json = await browser.CaptureStatsAsync();
+            await File.WriteAllTextAsync(Path.Combine(_active.Config.Root, "graphql-capture.json"), json);
+
+            // Also dump /me?format=json so we can locate the followers field.
+            var me = await browser.FetchAsync("https://medium.com/me?format=json");
+            await File.WriteAllTextAsync(Path.Combine(_active.Config.Root, "me-capture.json"), me.Body);
+
+            Log.Info($"Captured GraphQL ({json.Length} chars) and /me ({me.Body.Length} chars).");
+            _active.Vm.StatusMessage = $"Saved captures to {_active.Config.Root}";
+            OpenDataFolder(_active.Config.Root);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Stats capture failed", ex);
+            MessageBox.Show(ex.Message, "Capture failed", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    /// <summary>
+    /// Debug: capture the active account's GraphQL traffic for a single story and
+    /// save it to story-capture.json in that account's folder.
     /// </summary>
     public async Task CaptureStoryDebugAsync(string postId)
     {
@@ -213,12 +284,11 @@ public partial class App : Application
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
-        _browser ??= new MediumBrowser(Path.Combine(_settings.DataDirectory, "webview2"));
-        var json = await _browser.CaptureStoryAsync(postId);
-        var path = Path.Combine(_settings.DataDirectory, "story-capture.json");
+        var json = await _active.EnsureBrowser().CaptureStoryAsync(postId);
+        var path = Path.Combine(_active.Config.Root, "story-capture.json");
         await File.WriteAllTextAsync(path, json);
         Log.Info($"Captured story {postId} GraphQL ({json.Length} chars) to {path}");
-        OpenDataFolder();
+        OpenDataFolder(_active.Config.Root);
     }
 
     /// <summary>Persists window placement and any settings on shutdown.</summary>
@@ -226,18 +296,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _browser?.Dispose();
+        foreach (var account in _accounts)
+            account.Dispose();
         Log.Info("App exiting.");
         base.OnExit(e);
-    }
-
-    private void OnAuthExpired(object? sender, EventArgs e)
-    {
-        // Do NOT auto-clear the stored session here: the captured login is usually
-        // still valid in the browser, and a rejected HTTP request more often means
-        // a header/endpoint problem than a truly expired cookie. Wiping it would
-        // just lose the session and the diagnostic trail. The error banner already
-        // tells the user; they can re-sign-in or clear the session from Settings.
-        Log.Info("Refresh reported an auth failure; see latest.json.error for diagnostics.");
     }
 }
