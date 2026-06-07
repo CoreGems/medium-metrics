@@ -68,6 +68,20 @@ Open data folder**):
 | `session.bin` | DPAPI-encrypted Medium session cookie |
 | `settings.json` | Window placement and preferences |
 | `app.log` | Diagnostic log |
+| `apikey.bin` | DPAPI-encrypted bearer key for the optional local API |
+
+## Local API (optional, for a Custom GPT / local tools)
+
+A small **read-only** HTTP API can expose your logged metrics (summary, stories,
+tags, reports, history) to local tools or — via a tunnel — an **OpenAI Custom GPT**.
+It is **off by default**; turn it on in **Settings → Local API**, which also shows the
+bearer key and the local base URL (`http://localhost:8765/v1`). It runs only while the
+app is open and serves derived metrics only (never your session cookie). Per-tag
+follower gains and per-story funnel/referrer detail come from a cache that fills in as
+you open stories (or **Reports → Followers**) in the app — the API never calls Medium.
+
+See **[OPENAI_CUSTOM_GPT.md](OPENAI_CUSTOM_GPT.md)** for the endpoint reference, the
+OpenAPI schema, the Cloudflare Tunnel setup, and security notes.
 
 ## Development
 

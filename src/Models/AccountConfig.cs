@@ -37,6 +37,9 @@ public sealed class AccountConfig
     public string LatestJsonPath => Path.Combine(Root, "latest.json");
     public string SessionPath    => Path.Combine(Root, "session.bin");
 
+    /// <summary>Cached per-story detail (funnel/impact/referrers), one JSON file per story id.</summary>
+    public string DetailsDir     => Path.Combine(Root, "details");
+
     /// <summary>WebView2 profile (cookie jar + Cloudflare clearance) — must be per-account.</summary>
     public string WebView2Folder => Path.Combine(Root, "webview2");
 

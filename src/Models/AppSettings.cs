@@ -43,6 +43,16 @@ public sealed class AppSettings
     /// <summary>"Ground zero" for the earnings delta chart (USD): daily gains are shown above this.</summary>
     public decimal EarningsBaselineUsd { get; set; } = 412.80m;
 
+    /// <summary>
+    /// Whether the local read-only HTTP API (for a Custom GPT / local tools) runs while
+    /// the app is open. Off by default — see OPENAI_CUSTOM_GPT.md. The bearer key is NOT
+    /// stored here; it lives DPAPI-encrypted in apikey.bin (see <see cref="Services.ApiKey"/>).
+    /// </summary>
+    public bool ApiEnabled { get; set; }
+
+    /// <summary>Loopback port the local API binds to when enabled.</summary>
+    public int ApiPort { get; set; } = 8765;
+
     // Derived file paths — not serialized, just convenient.
     /// <summary>Root holding every account's isolated folder: <c>{DataDirectory}\accounts</c>.</summary>
     [JsonIgnore] public string AccountsRoot => Path.Combine(DataDirectory, "accounts");

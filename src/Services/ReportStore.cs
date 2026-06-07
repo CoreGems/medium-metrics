@@ -21,11 +21,13 @@ public sealed class ReportStore
 
     private readonly string _csvPath;
     private readonly string _latestPath;
+    private readonly string _detailsDir;
 
     public ReportStore(AppSettings settings)
     {
         _csvPath = settings.ReportCsvPath;
         _latestPath = settings.LatestJsonPath;
+        _detailsDir = Path.Combine(Path.GetDirectoryName(_latestPath)!, "details");
     }
 
     /// <summary>Appends exactly one row to report.csv, writing the header on first use.</summary>
@@ -70,13 +72,49 @@ public sealed class ReportStore
         }
     }
 
+    /// <summary>
+    /// Caches one story's extended detail (funnel/impact/referrers) so the Reports
+    /// dashboard and the local API can reuse the last fetched-in-the-UI values without
+    /// another live Medium call. One file per story under <c>details/</c>.
+    /// </summary>
+    public void SaveDetail(string storyId, StoryDetail detail)
+    {
+        if (string.IsNullOrEmpty(storyId)) return;
+        Directory.CreateDirectory(_detailsDir);
+        File.WriteAllText(Path.Combine(_detailsDir, storyId + ".json"),
+            JsonSerializer.Serialize(detail, JsonOpts));
+    }
+
+    /// <summary>Loads all cached per-story details, keyed by story id. Empty if none cached.</summary>
+    public IReadOnlyDictionary<string, StoryDetail> LoadDetails()
+    {
+        var map = new Dictionary<string, StoryDetail>();
+        if (!Directory.Exists(_detailsDir)) return map;
+        foreach (var file in Directory.EnumerateFiles(_detailsDir, "*.json"))
+        {
+            try
+            {
+                var d = JsonSerializer.Deserialize<StoryDetail>(File.ReadAllText(file));
+                if (d is not null) map[Path.GetFileNameWithoutExtension(file)] = d;
+            }
+            catch (JsonException) { /* skip corrupt cache file */ }
+        }
+        return map;
+    }
+
     /// <summary>Reads all history rows (skips the header and any malformed lines).</summary>
-    public IReadOnlyList<HistoryRow> ReadHistory()
+    public IReadOnlyList<HistoryRow> ReadHistory() =>
+        File.Exists(_csvPath) ? ParseCsv(File.ReadLines(_csvPath)) : new List<HistoryRow>();
+
+    /// <summary>
+    /// Parses history rows from raw CSV lines (skips the header and any malformed lines).
+    /// Exposed so a non-intrusive reader (e.g. the local API) can parse a shared read of
+    /// report.csv without going through <see cref="ReadHistory"/>'s own file open.
+    /// </summary>
+    public static IReadOnlyList<HistoryRow> ParseCsv(IEnumerable<string> lines)
     {
         var rows = new List<HistoryRow>();
-        if (!File.Exists(_csvPath)) return rows;
-
-        foreach (var line in File.ReadLines(_csvPath))
+        foreach (var line in lines)
         {
             if (line.Length == 0 || line.StartsWith("Timestamp", StringComparison.Ordinal))
                 continue;

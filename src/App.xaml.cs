@@ -51,6 +51,8 @@ public partial class App : Application
 
         MainWindow = new MainWindow(this, _active.Vm);
         MainWindow.Show();
+
+        if (_settings.ApiEnabled) StartApi();
     }
 
     /// <summary>
@@ -238,9 +240,18 @@ public partial class App : Application
         win.Activate();
     }
 
-    /// <summary>Fetches extended per-story stats for the active account's dashboard.</summary>
-    public Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
-        => _active.Vm.Client.FetchStoryDetailAsync(postId, ct);
+    /// <summary>
+    /// Fetches extended per-story stats for the active account's dashboard and caches the
+    /// result, so the Reports dashboard and the local API can reuse it without another live
+    /// Medium call. This is the single seam every UI detail fetch passes through.
+    /// </summary>
+    public async Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default)
+    {
+        var detail = await _active.Vm.Client.FetchStoryDetailAsync(postId, ct);
+        try { _active.Store.SaveDetail(postId, detail); }
+        catch (Exception ex) { Log.Error($"Failed to cache detail for {postId}", ex); }
+        return detail;
+    }
 
     /// <summary>
     /// Debug: capture the active account's stats GraphQL traffic and save it to
@@ -298,8 +309,77 @@ public partial class App : Application
     /// <summary>Persists window placement and any settings on shutdown.</summary>
     public void SaveSettings() => SettingsStore.Save(_settings);
 
+    // ---- Local API (read-only; for a Custom GPT / local tools — see OPENAI_CUSTOM_GPT.md) ----
+
+    private ApiServer? _api;
+    private string? _apiKey;
+
+    /// <summary>True while the local API is listening.</summary>
+    public bool ApiRunning => _api?.IsRunning == true;
+
+    /// <summary>Loopback port the local API binds to.</summary>
+    public int ApiPort => _settings.ApiPort;
+
+    /// <summary>Whether the local API is enabled in settings (may differ from <see cref="ApiRunning"/> if start failed).</summary>
+    public bool ApiEnabled => _settings.ApiEnabled;
+
+    /// <summary>Returns the API bearer key, creating one on first use.</summary>
+    public string GetOrCreateApiKey() => _apiKey ??= ApiKey.GetOrCreate(_settings);
+
+    /// <summary>Issues a fresh API key (instantly revoking the old one) and returns it.</summary>
+    public string RegenerateApiKey() => _apiKey = ApiKey.Regenerate(_settings);
+
+    /// <summary>Turns the local API on/off and persists the choice.</summary>
+    public void SetApiEnabled(bool enabled)
+    {
+        _settings.ApiEnabled = enabled;
+        SettingsStore.Save(_settings);
+        if (enabled) StartApi(); else StopApi();
+    }
+
+    /// <summary>Changes the API port, persists it, and restarts the server if it's running.</summary>
+    public void SetApiPort(int port)
+    {
+        if (port == _settings.ApiPort) return;
+        _settings.ApiPort = port;
+        SettingsStore.Save(_settings);
+        if (ApiRunning) { StopApi(); StartApi(); }
+    }
+
+    private void StartApi()
+    {
+        if (_api is not null) return;
+        try
+        {
+            GetOrCreateApiKey(); // ensure a key exists before accepting any request
+            var handler = new ApiRequestHandler(new DiskApiDataSource(VersionString()), () => _apiKey);
+            _api = new ApiServer(handler, _settings.ApiPort);
+            _api.Start();
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Failed to start local API", ex);
+            _api = null;
+            MessageBox.Show($"Could not start the local API on port {_settings.ApiPort}:\n{ex.Message}",
+                "Local API", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private void StopApi()
+    {
+        _api?.Dispose();
+        _api = null;
+    }
+
+    private static string VersionString()
+    {
+        var v = typeof(App).Assembly.GetName().Version;
+        return v is null ? "0" : $"{v.Major}.{v.Minor}.{v.Build}";
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
+        StopApi();
         foreach (var account in _accounts)
             account.Dispose();
         Log.Info("App exiting.");

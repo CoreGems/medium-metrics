@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using MediumMetrics.Services;
 
 namespace MediumMetrics.Views;
 
@@ -27,6 +28,55 @@ public partial class SettingsWindow : Window
             : $"'{acct.Config.Label}' is not signed in — showing demo data.";
         ClearButton.IsEnabled = _app.HasSession;
         DataFolderText.Text = acct.Config.Root;
+
+        ApiEnabledCheck.IsChecked = _app.ApiEnabled;
+        ApiPortBox.Text = _app.ApiPort.ToString();
+        ApiKeyBox.Text = _app.GetOrCreateApiKey();
+        UpdateApiStatus();
+    }
+
+    private void UpdateApiStatus()
+    {
+        ApiStatusText.Text = _app.ApiRunning ? "● running" : "○ stopped";
+        ApiStatusText.Foreground = _app.ApiRunning
+            ? System.Windows.Media.Brushes.Green : System.Windows.Media.Brushes.Gray;
+        ApiBaseUrlText.Text = $"Local base URL: http://localhost:{_app.ApiPort}/v1";
+    }
+
+    private void OnApiEnabledClick(object sender, RoutedEventArgs e)
+    {
+        _app.SetApiEnabled(ApiEnabledCheck.IsChecked == true);
+        UpdateApiStatus();
+    }
+
+    private void OnApplyPortClick(object sender, RoutedEventArgs e)
+    {
+        if (int.TryParse(ApiPortBox.Text, out var port) && port is > 0 and < 65536)
+        {
+            _app.SetApiPort(port);
+            UpdateApiStatus();
+        }
+        else
+        {
+            MessageBox.Show("Enter a port between 1 and 65535.", "Local API",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+            ApiPortBox.Text = _app.ApiPort.ToString();
+        }
+    }
+
+    private void OnCopyKeyClick(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(_app.GetOrCreateApiKey()); }
+        catch (Exception ex) { Log.Error("Copy API key failed", ex); }
+    }
+
+    private void OnRegenerateKeyClick(object sender, RoutedEventArgs e)
+    {
+        if (MessageBox.Show("Generate a new key? The current key stops working immediately.",
+            "Regenerate API key", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+        {
+            ApiKeyBox.Text = _app.RegenerateApiKey();
+        }
     }
 
     private void OnSignInClick(object sender, RoutedEventArgs e)
