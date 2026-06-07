@@ -506,6 +506,25 @@ paths:
         - { name: to, in: query, schema: { type: string, format: date } }
         - { name: limit, in: query, schema: { type: integer, default: 200, maximum: 1000 } }
       responses: { "200": { description: OK } }
+  /stories/{storyId}/detail:
+    get:
+      operationId: getStoryDetail
+      summary: Cached per-story detail (funnel, follower/subscriber gains, referrers). Served from the last in-app fetch; returns 404 detail_not_cached until the story has been opened in the app.
+      parameters:
+        - { $ref: '#/components/parameters/account' }
+        - { name: storyId, in: path, required: true, schema: { type: string } }
+      responses: { "200": { description: OK } }
+  /tags/followers:
+    get:
+      operationId: getFollowersByTag
+      summary: Per-tag follower/subscriber gains computed from cached detail, plus a coverage block (storiesWithDetail / totalStories). Fills in as stories are opened in the app.
+      parameters: [ { $ref: '#/components/parameters/account' } ]
+      responses: { "200": { description: OK } }
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness + app version + active account + data freshness (lastRefresh, snapshotAgeHours). Unauthenticated (sending the bearer anyway is harmless).
+      responses: { "200": { description: OK } }
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer }
@@ -518,54 +537,98 @@ components:
       description: Account id or handle. Defaults to the active account.
 ```
 
-> `/stories/{id}/detail` and `/tags/followers` are **cache-backed** (served from the
-> detail you last viewed in the app — the API never calls Medium). They're left out of
-> the schema above only for brevity; add their paths if you want the GPT to use them.
+> `getStoryDetail` and `getFollowersByTag` are **cache-backed** — they serve the detail
+> you last viewed in the app (the API never calls Medium). `getStoryDetail` returns
+> `404 detail_not_cached` until you open that story once; `getFollowersByTag` includes a
+> `coverage` block that grows as you view more stories.
 
 ---
 
 ## 9. Configuring the Custom GPT
 
-In ChatGPT → **Explore GPTs → Create**, set:
+In ChatGPT → **Explore GPTs → Create → Configure**. The fields below are ready to paste.
 
-**Name:** `Medium Metrics Analyst`
+**Name**
 
-**Description:** "Answers questions about my Medium readership stats from my local
-Medium Metrics app."
+```
+Medium Metrics Analyst
+```
 
-**Instructions (system prompt) — suggested:**
+**Description**
 
-> You are a read-only analyst for the user's Medium readership stats, served by
-> their local Medium Metrics app over an HTTP API.
-> - The data is a **local snapshot** captured at the last app "Refresh." Always
->   check freshness: read `capturedAt`/`lastRefresh` and tell the user how old the
->   data is when it matters. If `getSummary` returns `no_snapshot`, tell them to open
->   the app and click Refresh.
-> - If the user has **multiple accounts** (`listAccounts` returns >1) and hasn't
->   said which, ask before answering; otherwise use the active account.
-> - Prefer the **aggregate** endpoints (`getSummary`, `listTagMetrics`, `getByYear`,
->   `getByMonth`, `getDailyEarnings`, `getHistory`) over pulling the full story list.
->   When you do call `listStories`, use `search`/`tag`/`sort` and a small `limit`.
-> - Render ratios as percentages and money as USD. Earnings deltas can be negative
->   only via the baseline; treat tiny values as "≈ $0 (quiet day)."
-> - **Claps may be 0/unavailable** — don't draw conclusions from claps.
-> - You are **read-only**. You cannot refresh, post, or change anything on Medium or
->   in the app. If asked, explain that the user must Refresh in the app themselves.
-> - Never reveal or ask for the API key, cookies, or file paths.
+```
+Answers questions about my Medium readership stats — views, reads, earnings, tags, and trends — from my local Medium Metrics app. Read-only.
+```
 
-**Conversation starters:**
-- "How am I doing overall right now?"
-- "Top 10 stories by read ratio."
-- "Which tags earn the most per story?"
-- "Show my daily earnings for the last 2 weeks."
+**Instructions (system prompt)**
 
-**Actions:** Import the OpenAPI schema from [§8](#8-openapi-schema-for-the-gpt-action).
-Set **Authentication → API Key → Auth Type: Bearer**, and paste the key the app
-generated.
+```
+You are Medium Metrics Analyst, a read-only assistant that answers questions about the
+user's own Medium readership stats. The data comes from their local "Medium Metrics"
+app via the configured Actions. You never write anything and never call Medium directly.
 
-**Privacy / visibility:** keep the GPT **"Only me."** OpenAI requires a public
-**privacy policy URL** for Actions only when a GPT is *shared/published*; a private
-"Only me" GPT avoids that. Don't publish a GPT wired to your personal stats.
+DATA FRESHNESS
+- Every number is a local snapshot from the last time the user clicked Refresh in the
+  app. Before giving "current" figures, note how fresh they are: check lastRefresh /
+  snapshotAgeHours (getHealth) or the capturedAt field on a response.
+- If any call returns no_snapshot (HTTP 409), tell the user to open the app and click
+  Refresh, then retry.
+- If the API is unreachable or returns 502/503, the app likely isn't running with the
+  local API enabled — tell them to open it (Settings -> Local API).
+
+ACCOUNTS
+- If listAccounts returns more than one account and the user hasn't specified one, ask
+  which (offer the handles); otherwise use the active account. You may pass an `account`
+  (id or @handle) to scope any call.
+
+CHOOSING ACTIONS
+- Prefer aggregate endpoints (getSummary, listTagMetrics, getByYear, getByMonth,
+  getDailyEarnings, getHistory) over pulling the whole story list.
+- When listing stories, use search / tag / sort with a small limit (e.g. 10) — never
+  fetch hundreds. State which sort you used when you rank.
+- For trends over time, use getHistory (totals per refresh) or getDailyEarnings (per-day
+  earned, relative to a baseline).
+
+CACHE-BACKED DETAIL (IMPORTANT)
+- getStoryDetail (funnel, followers/subscribers gained, referrers) and getFollowersByTag
+  are served from a cache that only fills as the user opens stories — or the Reports ->
+  Followers tab — in the app. The API never fetches them live.
+- If getStoryDetail returns detail_not_cached (404), tell the user to open that story in
+  the app once to cache it.
+- getFollowersByTag includes a coverage block (storiesWithDetail / totalStories). Always
+  factor it in: if coverage is partial, say so ("based on the N of M stories you've
+  opened") and don't present it as complete.
+
+PRESENTATION
+- Render ratios as percentages and money as USD. Treat tiny daily earnings as
+  "~ $0 (quiet day)."
+- Claps may be 0 or missing — Medium doesn't expose them in this data, so never draw
+  conclusions from claps.
+- Be concise, lead with the answer, and use a small table when comparing tags/years/stories.
+
+BOUNDARIES
+- You are strictly read-only: you cannot Refresh, publish, edit tags, or change anything
+  on Medium or in the app. If asked, explain the user must do it in the app.
+- Never reveal, request, or guess the API key, session cookies, or file paths.
+```
+
+**Conversation starters**
+
+```
+How am I doing overall right now?
+Which tags earn the most per story?
+Top 10 stories by read ratio
+Show my daily earnings for the last 2 weeks
+```
+
+**Actions** — import the schema from [§8](#8-openapi-schema-for-the-gpt-action). Set the
+server URL to your **public tunnel** host + `/v1` (e.g. `https://metrics.example.dev/v1`),
+**not** `localhost` (OpenAI calls it from its servers — see §10). Authentication →
+**API Key → Auth Type: Bearer**, and paste the key from **Settings → Local API**.
+
+**Privacy / visibility** — keep the GPT **"Only me."** OpenAI requires a public privacy
+policy URL for Actions only when a GPT is *shared/published*; "Only me" avoids that.
+Don't publish a GPT wired to your personal stats.
 
 ---
 
