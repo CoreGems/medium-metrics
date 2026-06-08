@@ -32,25 +32,37 @@
 
 .PARAMETER Quick
     Use an ephemeral quick tunnel (random *.trycloudflare.com URL) instead of the named
-    tunnel. Handy for a one-off test, but the URL changes every run, so you would have to
-    re-paste it into the GPT Action each time. Not for steady use.
+    tunnel. Handy for a one-off test, but the URL changes every run. NOTE: the shared
+    trycloudflare.com zone may return 403 to cloud callers like OpenAI (bot mitigation);
+    use a named tunnel on your own domain, or -Ngrok, if that happens.
+
+.PARAMETER Ngrok
+    Use ngrok instead of cloudflared (a different edge that doesn't bot-block OpenAI).
+    Runs `ngrok http <port> --host-header=localhost`. Requires ngrok on PATH (and a
+    one-time `ngrok config add-authtoken <token>` from a free ngrok account).
 
 .EXAMPLE
     .\start_tunnel.ps1
     .\start_tunnel.ps1 -Name my-tunnel
     .\start_tunnel.ps1 -Quick
+    .\start_tunnel.ps1 -Ngrok
 #>
 [CmdletBinding()]
 param(
     [string]$Name = 'medium-metrics',
     [int]$Port = 0,
-    [switch]$Quick
+    [switch]$Quick,
+    [switch]$Ngrok
 )
 
 $ErrorActionPreference = 'Stop'
 
-# Verify cloudflared is available.
-if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
+# Verify the chosen tunnel tool is available.
+if ($Ngrok) {
+    if (-not (Get-Command ngrok -ErrorAction SilentlyContinue)) {
+        throw "ngrok was not found on PATH. Install it from https://ngrok.com/download (or: winget install ngrok.ngrok), then run 'ngrok config add-authtoken <token>'."
+    }
+} elseif (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
     throw "cloudflared was not found on PATH. Install it with: winget install --id Cloudflare.cloudflared  (see OPENAI_CUSTOM_GPT.md section 10)."
 }
 
@@ -82,9 +94,12 @@ try {
 }
 
 # Run the tunnel in the foreground (Ctrl+C to stop).
-if ($Quick) {
+if ($Ngrok) {
+    Write-Host "Starting ngrok -> http://localhost:$Port. Use the printed https URL + /v1 as the GPT Action server URL." -ForegroundColor Cyan
+    & ngrok http $Port --host-header=localhost
+} elseif ($Quick) {
     Write-Host "Starting a QUICK Cloudflare tunnel to http://localhost:$Port (random URL; changes each run)..." -ForegroundColor Cyan
-    & cloudflared tunnel --url "http://localhost:$Port"
+    & cloudflared tunnel --url "http://localhost:$Port" --http-host-header localhost
 } else {
     Write-Host "Starting named Cloudflare tunnel '$Name' -> http://localhost:$Port (Ctrl+C to stop)..." -ForegroundColor Cyan
     & cloudflared tunnel run $Name

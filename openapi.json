@@ -1,0 +1,154 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Medium Metrics API",
+    "version": "1.0.0",
+    "description": "Read-only access to locally-logged Medium readership stats."
+  },
+  "servers": [
+    { "url": "https://dell717.tail23295d.ts.net/v1" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Liveness, app version, active account, and data freshness.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/accounts": {
+      "get": {
+        "operationId": "listAccounts",
+        "summary": "List known Medium accounts so the user can be asked which to use.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/summary": {
+      "get": {
+        "operationId": "getSummary",
+        "summary": "Account-level headline totals from the latest snapshot.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/stories": {
+      "get": {
+        "operationId": "listStories",
+        "summary": "List stories with optional search/tag filter and sorting. Paginated.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "search", "in": "query", "description": "Match title or tag.", "schema": { "type": "string" } },
+          { "name": "tag", "in": "query", "schema": { "type": "string" } },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["views", "reads", "readRatio", "earnings", "claps", "impressions", "publishedAt", "title"] } },
+          { "name": "order", "in": "query", "schema": { "type": "string", "enum": ["asc", "desc"] } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/stories/{storyId}": {
+      "get": {
+        "operationId": "getStory",
+        "summary": "One story's metadata.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "storyId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/stories/{storyId}/detail": {
+      "get": {
+        "operationId": "getStoryDetail",
+        "summary": "Cached per-story detail (funnel, follower/subscriber gains, referrers). Returns 404 until the story is opened in the app.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "storyId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/tags": {
+      "get": {
+        "operationId": "listTagMetrics",
+        "summary": "Per-tag totals (stories, views, reads, earnings, read ratio, earnings per story).",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "sort", "in": "query", "schema": { "type": "string", "enum": ["views", "reads", "earnings", "earningsPerStory", "readRatio", "stories", "claps"] } },
+          { "name": "order", "in": "query", "schema": { "type": "string", "enum": ["asc", "desc"] } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/tags/followers": {
+      "get": {
+        "operationId": "getFollowersByTag",
+        "summary": "Per-tag follower/subscriber gains from cached detail, plus a coverage block.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/tags/{tag}/stories": {
+      "get": {
+        "operationId": "listStoriesByTag",
+        "summary": "Stories carrying a given tag.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "tag", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/reports/by-year": {
+      "get": {
+        "operationId": "getByYear",
+        "summary": "Totals grouped by publish year.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/reports/by-month": {
+      "get": {
+        "operationId": "getByMonth",
+        "summary": "Totals grouped by publish month (yyyy-MM).",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/reports/earnings/daily": {
+      "get": {
+        "operationId": "getDailyEarnings",
+        "summary": "Daily earnings totals and per-day deltas from the history log.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "baseline", "in": "query", "schema": { "type": "number" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/history": {
+      "get": {
+        "operationId": "getHistory",
+        "summary": "Account-total time series, one row per refresh.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "to", "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 200, "maximum": 1000 } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    }
+  }
+}

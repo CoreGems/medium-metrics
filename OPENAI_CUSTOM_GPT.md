@@ -682,6 +682,8 @@ credentials-file: C:\Users\<you>\.cloudflared\<TUNNEL-UUID>.json
 ingress:
   - hostname: metrics.example.dev
     service: http://localhost:8780      # the app's ApiServer port
+    originRequest:
+      httpHostHeader: localhost         # REQUIRED — the app's HttpListener only answers to Host: localhost
   - service: http_status:404            # required catch-all
 ```
 
@@ -701,9 +703,14 @@ One command, instant HTTPS — but the hostname is **random and changes every ru
 you must re-paste the Action URL each time:
 
 ```powershell
-cloudflared tunnel --url http://localhost:8780
+cloudflared tunnel --url http://localhost:8780 --http-host-header localhost
 # → prints https://<random-words>.trycloudflare.com
 ```
+
+> **Host header (important).** The app's loopback `HttpListener` only answers to
+> `Host: localhost`/`127.0.0.1`. cloudflared forwards the *public* hostname by default, so
+> without `--http-host-header localhost` (quick tunnel) or `originRequest.httpHostHeader: localhost`
+> (named tunnel, in config.yml) you'll get **`400 Bad Request — Invalid Hostname`** from http.sys.
 
 ### "App closed" behaviour — a clean signal, not a bug
 
@@ -712,11 +719,29 @@ If `cloudflared` runs as a service but the app isn't open, nothing is listening 
 read 502/503 as *"the Medium Metrics app isn't running — open it and click Refresh."*
 Closing the app is therefore an instant way to revoke access.
 
-### Other tunnels (if you don't use Cloudflare)
+### Tailscale Funnel (no domain needed — tested working)
 
-ngrok (`ngrok http 8780`) or Tailscale Funnel (`tailscale funnel 8780`) work too — the
-same single-base-URL caveat applies. A VPS that hosts/replicates the API would be
-always-on but **defeats local-first** (your data would live off your PC) — out of scope.
+If you don't have a domain on Cloudflare, **Tailscale Funnel** is the easiest path that keeps
+data local: a **stable** public HTTPS URL (`https://<machine>.<tailnet>.ts.net`) with
+auto-provisioned certs, forwarding to `127.0.0.1:8780`. Unlike the shared `trycloudflare.com`
+it isn't bot-blocked, and unlike ngrok's free edge its TLS is solid. Crucially, Funnel forwards
+the request in a way the loopback `HttpListener` accepts, so **no Host-header rewrite or app
+change is needed**.
+
+```powershell
+# one-time: install Tailscale, sign in, then enable Funnel for the tailnet
+#   (the first run prints an admin-console link to flip it on + HTTPS certs)
+tailscale funnel --bg 8780          # background; persists across reboots while Tailscale runs
+tailscale funnel status             # shows the public https://<…>.ts.net URL
+# stop with:  tailscale funnel --https=443 off
+```
+
+Set the GPT Action server URL to `https://<machine>.<tailnet>.ts.net/v1` once — it's stable.
+
+Other options: ngrok works once the agent is current (its free edge hit broken TLS on
+`*.ngrok-free.dev` — see [WHAT_WRONG_WITH_NGROK.md](WHAT_WRONG_WITH_NGROK.md)). A VPS that
+hosts/replicates the API would be always-on but **defeats local-first** (data would live off
+your PC).
 
 > **Boundary:** the app should **not** spawn or manage `cloudflared`. Settings shows
 > the port and these commands for reference; you start and stop the tunnel yourself, so
