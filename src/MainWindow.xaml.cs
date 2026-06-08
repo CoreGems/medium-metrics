@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     {
         _app = app;
         InitializeComponent();
+        Icon = Views.AppIcon.Get();
         DataContext = viewModel;
         ApplyBounds(app.Settings.Window);
         Loaded += (_, _) => { ApplySavedSort(); InitAccountSwitcher(); };
