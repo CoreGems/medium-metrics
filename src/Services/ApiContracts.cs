@@ -72,6 +72,9 @@ public interface IApiDataSource
 
     /// <summary>One story's logged stats time series (oldest first); empty if none logged yet.</summary>
     IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId);
+
+    /// <summary>One story's recorded title changes (oldest first); empty if none.</summary>
+    IReadOnlyList<TitleChange> LoadTitleHistory(string accountId, string storyId);
 }
 
 // ---- Response DTOs (serialized camelCase, nulls omitted). Shapes per OPENAI_CUSTOM_GPT.md §6. ----
@@ -165,3 +168,18 @@ public sealed record StoryReferrersResponse(string Account, string StoryId, Date
 public sealed record StoryConversionsResponse(string Account, string StoryId, DateTimeOffset FetchedAt,
     long FollowersGained, long FollowersLost, long NetFollowerCount,
     long SubscribersGained, long NetSubscriberCount, long Reads, double ConversionRateFromReads);
+
+public sealed record SimilarStoryDto(string StoryId, string Title, double SimilarityScore,
+    long Views, double ReadRatio, decimal EarningsUsd, IReadOnlyList<string> Tags);
+
+public sealed record SimilarStoriesResponse(string Account, string StoryId,
+    IReadOnlyList<SimilarStoryDto> Similar);
+
+public sealed record TitlePatternDto(string Pattern, int Stories, double AvgReadRatio, decimal AvgEarningsUsd);
+
+public sealed record PatternsResponse(string Account, IReadOnlyList<TitlePatternDto> TitlePatterns);
+
+public sealed record TitleChangeDto(DateTimeOffset CapturedAt, string Title);
+
+public sealed record TitleHistoryResponse(string Account, string StoryId,
+    IReadOnlyList<TitleChangeDto> Changes);

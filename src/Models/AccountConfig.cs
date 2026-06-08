@@ -43,6 +43,9 @@ public sealed class AccountConfig
     /// <summary>Append-only per-story stats time series (one row per story per refresh).</summary>
     public string StoryHistoryCsvPath => Path.Combine(Root, "stories-history.csv");
 
+    /// <summary>Append-only per-story title change log.</summary>
+    public string TitleHistoryCsvPath => Path.Combine(Root, "title-history.csv");
+
     /// <summary>WebView2 profile (cookie jar + Cloudflare clearance) — must be per-account.</summary>
     public string WebView2Folder => Path.Combine(Root, "webview2");
 

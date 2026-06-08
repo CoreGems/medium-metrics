@@ -59,11 +59,14 @@ public sealed class ApiRequestHandler
             (4, "stories") when seg[3] == "daily" => StoryDailyEndpoint(req, seg[2]),
             (4, "stories") when seg[3] == "referrers" => StoryReferrers(req, seg[2]),
             (4, "stories") when seg[3] == "conversions" => StoryConversions(req, seg[2]),
+            (4, "stories") when seg[3] == "similar" => Similar(req, seg[2]),
+            (4, "stories") when seg[3] == "title-history" => TitleHistory(req, seg[2]),
             (2, "tags") => Tags(req),
             (3, "tags") when seg[2] == "followers" => FollowersByTag(req),
             (4, "tags") when seg[3] == "stories" => TagStories(req, seg[2]),
             (3, "reports") when seg[2] == "by-year" => ByYear(req),
             (3, "reports") when seg[2] == "by-month" => ByMonth(req),
+            (3, "reports") when seg[2] == "patterns" => Patterns(req),
             (4, "reports") when seg[2] == "earnings" && seg[3] == "daily" => DailyEarnings(req),
             (2, "history") => History(req),
             _ => Error(404, "not_found", $"Unknown path '{req.Path}'."),
@@ -265,6 +268,31 @@ public sealed class ApiRequestHandler
                 x.FollowersGained, x.FollowersLost, x.NetFollowerCount,
                 x.SubscribersGained, x.NetSubscriberCount, reads, rate));
         });
+
+    private ApiResult Similar(ApiRequest req, string id) =>
+        WithSnapshot(req, (d, s) =>
+        {
+            if (!s.Stories.Any(x => string.Equals(x.StoryId, id, StringComparison.Ordinal)))
+                return Error(404, "story_not_found", $"No story '{id}' in the latest snapshot.");
+            int limit = Clamp(Int(req, "limit") ?? 5, 1, 50);
+            return Ok(new SimilarStoriesResponse(d.Info.Id, id,
+                Reports.SimilarStories(s.Stories, id, limit)
+                    .Select(x => new SimilarStoryDto(
+                        x.Story.StoryId, x.Story.Title, Ratio(x.Score),
+                        x.Story.Views, Ratio(x.Story.ReadRatio), Money(x.Story.EarningsUsd), x.Story.Tags))
+                    .ToList()));
+        });
+
+    private ApiResult Patterns(ApiRequest req) =>
+        WithSnapshot(req, (d, s) =>
+            Ok(new PatternsResponse(d.Info.Id, Reports.TitlePatterns(s.Stories)
+                .Select(p => new TitlePatternDto(p.Pattern, p.Stories, Ratio(p.AvgReadRatio), Money(p.AvgEarnings)))
+                .ToList())));
+
+    private ApiResult TitleHistory(ApiRequest req, string id) =>
+        WithAccount(req, d => Ok(new TitleHistoryResponse(d.Info.Id, id,
+            _data.LoadTitleHistory(d.Info.Id, id)
+                .Select(c => new TitleChangeDto(c.CapturedAt, c.Title)).ToList())));
 
     // ---- Account resolution ----
 

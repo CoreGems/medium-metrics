@@ -62,3 +62,12 @@ public sealed class DailyEarning
     public decimal Total { get; set; }
     public decimal Delta { get; set; }
 }
+
+/// <summary>A structural title-pattern bucket: matching story count + average read ratio / earnings.</summary>
+public sealed class TitlePattern
+{
+    public string Pattern { get; set; } = "";
+    public int Stories { get; set; }
+    public double AvgReadRatio { get; set; }
+    public decimal AvgEarnings { get; set; }
+}

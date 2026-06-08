@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using MediumMetrics.Models;
 
 namespace MediumMetrics.Services;
@@ -179,5 +180,84 @@ public static class Reports
             .ThenByDescending(m => m.SubscribersGained)
             .ThenBy(m => m.Tag, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    // ---- Local analytics (deterministic helpers; the GPT does the semantic/LLM work) ----
+
+    /// <summary>
+    /// Stories most similar to <paramref name="targetId"/>, ranked by tag overlap (0.6) and
+    /// title-keyword overlap (0.4), both Jaccard. Up to <paramref name="limit"/> results,
+    /// excluding the target and zero-similarity stories. Empty if the target isn't present.
+    /// </summary>
+    public static IReadOnlyList<(StorySnapshot Story, double Score)> SimilarStories(
+        IEnumerable<StorySnapshot> stories, string targetId, int limit)
+    {
+        var all = stories.Where(s => !string.IsNullOrEmpty(s.StoryId)).ToList();
+        var target = all.FirstOrDefault(s => string.Equals(s.StoryId, targetId, StringComparison.Ordinal));
+        if (target is null) return Array.Empty<(StorySnapshot, double)>();
+
+        var tTags = TagSet(target);
+        var tTitle = TitleTokens(target.Title);
+
+        return all
+            .Where(s => !string.Equals(s.StoryId, targetId, StringComparison.Ordinal))
+            .Select(s => (Story: s,
+                Score: 0.6 * Jaccard(tTags, TagSet(s)) + 0.4 * Jaccard(tTitle, TitleTokens(s.Title))))
+            .Where(x => x.Score > 0)
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Story.Views)
+            .Take(Math.Max(1, limit))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Structural title-pattern buckets (a story may match several): count, average read
+    /// ratio, and average earnings per pattern, best-earning first. Title text only —
+    /// word-count buckets need story content (a separate, not-yet-built capture).
+    /// </summary>
+    public static IReadOnlyList<TitlePattern> TitlePatterns(IEnumerable<StorySnapshot> stories)
+    {
+        var list = stories.ToList();
+        var features = new (string Name, Func<StorySnapshot, bool> Match)[]
+        {
+            ("Question headline",       s => s.Title.TrimEnd().EndsWith("?", StringComparison.Ordinal)),
+            ("Contains a number",       s => s.Title.Any(char.IsDigit)),
+            ("Has a colon",            s => s.Title.Contains(':')),
+            ("Long title (60+ chars)",  s => s.Title.Length >= 60),
+        };
+
+        var result = new List<TitlePattern>();
+        foreach (var (name, match) in features)
+        {
+            var hit = list.Where(match).ToList();
+            if (hit.Count == 0) continue;
+            result.Add(new TitlePattern
+            {
+                Pattern = name,
+                Stories = hit.Count,
+                AvgReadRatio = hit.Average(s => s.ReadRatio),
+                AvgEarnings = hit.Sum(s => s.EarningsUsd) / hit.Count,
+            });
+        }
+        return result.OrderByDescending(p => p.AvgEarnings).ToList();
+    }
+
+    private static HashSet<string> TagSet(StorySnapshot s) =>
+        s.Tags.Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0).ToHashSet();
+
+    private static readonly HashSet<string> TitleStopWords = new(StringComparer.Ordinal)
+        { "the", "and", "for", "are", "with", "how", "why", "what", "your", "this", "that", "from", "you" };
+
+    private static HashSet<string> TitleTokens(string title) =>
+        Regex.Split(title.ToLowerInvariant(), "[^a-z0-9]+")
+            .Where(w => w.Length >= 3 && !TitleStopWords.Contains(w))
+            .ToHashSet();
+
+    private static double Jaccard(HashSet<string> a, HashSet<string> b)
+    {
+        if (a.Count == 0 || b.Count == 0) return 0;
+        int inter = a.Count(b.Contains);
+        int union = a.Count + b.Count - inter;
+        return union == 0 ? 0 : (double)inter / union;
     }
 }

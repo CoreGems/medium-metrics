@@ -35,6 +35,12 @@ public class ApiRequestHandlerTests
 
         public IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId) =>
             StoryHistory.TryGetValue($"{accountId}/{storyId}", out var p) ? p : new List<StoryStatPoint>();
+
+        public Dictionary<string, List<TitleChange>> TitleHistory { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyList<TitleChange> LoadTitleHistory(string accountId, string storyId) =>
+            TitleHistory.TryGetValue($"{accountId}/{storyId}", out var c) ? c : new List<TitleChange>();
     }
 
     private static ApiRequestHandler Handler(IApiDataSource src) => new(src, () => Key);
@@ -472,5 +478,74 @@ public class ApiRequestHandlerTests
         Assert.Equal(600, c.Reads);
         Assert.Equal(0.01, c.ConversionRateFromReads, 4);  // 6 / 600
         Assert.Equal(404, Handler(src).Handle(Auth("/v1/stories/s2/conversions")).Status); // s2 not cached
+    }
+
+    // ---- similar / patterns / title-history ----
+
+    private static FakeSource SourceWith(StatsSnapshot snap)
+    {
+        var info = new AccountInfo("a1", "Alex", "alex", "Alex", true, snap.Timestamp, snap.Stories.Count);
+        var src = new FakeSource { ActiveId = "a1" };
+        src.Infos.Add(info);
+        src.Accounts["a1"] = new AccountData { Info = info, Latest = snap };
+        return src;
+    }
+
+    [Fact]
+    public void Similar_RanksAndExcludesSelf_404ForUnknown()
+    {
+        var snap = new StatsSnapshot
+        {
+            Timestamp = new DateTimeOffset(2026, 6, 7, 8, 0, 0, TimeSpan.Zero),
+            Stories = new List<StorySnapshot>
+            {
+                St("p1", "Putin's Next Move", 1000, 500, 10m, 2026, "Politics", "Russia"),
+                St("p2", "Russia and the Kremlin", 800, 400, 8m, 2026, "Politics", "Russia"),
+                St("f1", "Sourdough Tips", 100, 30, 1m, 2026, "Food"),
+            },
+        };
+        var src = SourceWith(snap);
+        var r = Assert.IsType<SimilarStoriesResponse>(Handler(src).Handle(Auth("/v1/stories/p1/similar")).Body);
+        Assert.Equal("p2", r.Similar[0].StoryId);
+        Assert.DoesNotContain(r.Similar, x => x.StoryId == "p1");
+        Assert.Equal(404, Handler(src).Handle(Auth("/v1/stories/nope/similar")).Status);
+    }
+
+    [Fact]
+    public void Patterns_ReturnsTitleBuckets()
+    {
+        var snap = new StatsSnapshot
+        {
+            Timestamp = new DateTimeOffset(2026, 6, 7, 8, 0, 0, TimeSpan.Zero),
+            Stories = new List<StorySnapshot>
+            {
+                St("q", "Will It Last?", 100, 80, 10m, 2026),
+                St("n", "7 Ways to Win", 100, 50, 5m, 2026),
+            },
+        };
+        var p = Assert.IsType<PatternsResponse>(Handler(SourceWith(snap)).Handle(Auth("/v1/reports/patterns")).Body);
+        Assert.Contains(p.TitlePatterns, x => x.Pattern == "Question headline" && x.Stories == 1);
+        Assert.Contains(p.TitlePatterns, x => x.Pattern == "Contains a number" && x.Stories == 1);
+    }
+
+    [Fact]
+    public void TitleHistory_ReturnsChanges()
+    {
+        var src = Sample();
+        src.TitleHistory["a1/s1"] = new()
+        {
+            new TitleChange { CapturedAt = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero), Title = "Old Title" },
+            new TitleChange { CapturedAt = new DateTimeOffset(2026, 6, 5, 0, 0, 0, TimeSpan.Zero), Title = "New Title" },
+        };
+        var h = Assert.IsType<TitleHistoryResponse>(Handler(src).Handle(Auth("/v1/stories/s1/title-history")).Body);
+        Assert.Equal(2, h.Changes.Count);
+        Assert.Equal("New Title", h.Changes[1].Title);
+    }
+
+    [Fact]
+    public void TitleHistory_EmptyWhenNone()
+    {
+        var h = Assert.IsType<TitleHistoryResponse>(Handler(Sample()).Handle(Auth("/v1/stories/s1/title-history")).Body);
+        Assert.Empty(h.Changes);
     }
 }

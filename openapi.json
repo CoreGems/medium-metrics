@@ -115,6 +115,29 @@
         "responses": { "200": { "description": "OK" } }
       }
     },
+    "/stories/{storyId}/similar": {
+      "get": {
+        "operationId": "getStorySimilar",
+        "summary": "Stories most similar to this one (by tag and title-keyword overlap). Optional limit (default 5).",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "storyId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 5, "maximum": 50 } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/stories/{storyId}/title-history": {
+      "get": {
+        "operationId": "getTitleHistory",
+        "summary": "Recorded title changes for one story over time (a change log; empty until a title changes).",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "storyId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
     "/tags": {
       "get": {
         "operationId": "listTagMetrics",
@@ -162,6 +185,16 @@
       "get": {
         "operationId": "getByMonth",
         "summary": "Totals grouped by publish month (yyyy-MM).",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/reports/patterns": {
+      "get": {
+        "operationId": "getPatterns",
+        "summary": "Structural title-pattern buckets (question/number/colon/length) with average read ratio and earnings.",
         "parameters": [
           { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } }
         ],

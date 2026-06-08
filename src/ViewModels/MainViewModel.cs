@@ -110,6 +110,7 @@ public partial class MainViewModel : ObservableObject
         {
             _store.AppendSnapshot(snapshot);
             _store.AppendStoryHistory(snapshot);
+            _store.AppendTitleChanges(snapshot);
             _store.SaveLatest(snapshot);
             History.Insert(0, HistoryRow.FromSnapshot(snapshot));
         }

@@ -20,12 +20,15 @@ public sealed class ReportStore
     private const string StoryHistoryHeader =
         "Timestamp,StoryId,Views,Reads,Impressions,Earnings";
 
+    private const string TitleHistoryHeader = "Timestamp,StoryId,Title";
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     private readonly string _csvPath;
     private readonly string _latestPath;
     private readonly string _detailsDir;
     private readonly string _storyHistoryPath;
+    private readonly string _titleHistoryPath;
 
     public ReportStore(AppSettings settings)
     {
@@ -33,6 +36,7 @@ public sealed class ReportStore
         _latestPath = settings.LatestJsonPath;
         _detailsDir = Path.Combine(Path.GetDirectoryName(_latestPath)!, "details");
         _storyHistoryPath = Path.Combine(Path.GetDirectoryName(_latestPath)!, "stories-history.csv");
+        _titleHistoryPath = Path.Combine(Path.GetDirectoryName(_latestPath)!, "title-history.csv");
     }
 
     /// <summary>Appends exactly one row to report.csv, writing the header on first use.</summary>
@@ -167,6 +171,68 @@ public sealed class ReportStore
             });
         }
         return points;
+    }
+
+    /// <summary>
+    /// Appends a row to title-history.csv for any story whose title differs from the most
+    /// recent recorded one (or has none yet), so the file reads as a change log. Title is the
+    /// trailing field (parsed with a 3-way split), so embedded commas are preserved.
+    /// </summary>
+    public void AppendTitleChanges(StatsSnapshot snapshot)
+    {
+        EnsureDirectory();
+        var last = LastTitles();
+        bool isNew = !File.Exists(_titleHistoryPath);
+
+        var sb = new StringBuilder();
+        if (isNew) sb.AppendLine(TitleHistoryHeader);
+
+        var ts = snapshot.Timestamp.ToString("o", CultureInfo.InvariantCulture);
+        foreach (var s in snapshot.Stories)
+        {
+            if (string.IsNullOrEmpty(s.StoryId)) continue;
+            var title = (s.Title ?? "").Replace('\r', ' ').Replace('\n', ' ');
+            if (last.TryGetValue(s.StoryId, out var prev) && prev == title) continue; // unchanged
+            sb.Append(ts).Append(',').Append(s.StoryId).Append(',').Append(title).Append('\n');
+        }
+
+        if (sb.Length > 0) File.AppendAllText(_titleHistoryPath, sb.ToString());
+    }
+
+    /// <summary>Most recently recorded title per story id (later rows win).</summary>
+    private Dictionary<string, string> LastTitles()
+    {
+        var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!File.Exists(_titleHistoryPath)) return map;
+        foreach (var line in File.ReadLines(_titleHistoryPath))
+        {
+            if (line.Length == 0 || line.StartsWith("Timestamp", StringComparison.Ordinal)) continue;
+            var f = line.Split(',', 3);
+            if (f.Length == 3) map[f[1]] = f[2];
+        }
+        return map;
+    }
+
+    /// <summary>One story's recorded title changes (oldest first); empty if none.</summary>
+    public IReadOnlyList<TitleChange> ReadTitleHistory(string storyId) =>
+        File.Exists(_titleHistoryPath)
+            ? ParseTitleHistory(File.ReadLines(_titleHistoryPath), storyId)
+            : new List<TitleChange>();
+
+    /// <summary>Parses one story's title changes from raw lines (filtered by id). For the API's shared read.</summary>
+    public static IReadOnlyList<TitleChange> ParseTitleHistory(IEnumerable<string> lines, string storyId)
+    {
+        var changes = new List<TitleChange>();
+        foreach (var line in lines)
+        {
+            if (line.Length == 0 || line.StartsWith("Timestamp", StringComparison.Ordinal)) continue;
+            var f = line.Split(',', 3);
+            if (f.Length < 3 || !string.Equals(f[1], storyId, StringComparison.Ordinal)) continue;
+            if (!DateTimeOffset.TryParse(f[0], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var ts))
+                continue;
+            changes.Add(new TitleChange { CapturedAt = ts, Title = f[2] });
+        }
+        return changes;
     }
 
     /// <summary>Reads all history rows (skips the header and any malformed lines).</summary>

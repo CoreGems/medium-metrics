@@ -56,4 +56,45 @@ public class ReportsTests
         Assert.Equal(1.30m, daily[1].Earnings);       // 2.50 - 1.20
         Assert.Equal(20.0 / 30.0, daily[1].ReadRatio, 3); // delta reads / delta views
     }
+
+    private static StorySnapshot Story(string id, string title, long views, long reads, params string[] tags) =>
+        new() { StoryId = id, Title = title, Views = views, Reads = reads, Tags = tags };
+
+    [Fact]
+    public void SimilarStories_RanksByTagAndTitleOverlap()
+    {
+        var stories = new List<StorySnapshot>
+        {
+            Story("a", "Putin and the Kremlin Jackals", 1000, 500, "Politics", "Russia"),
+            Story("b", "The Kremlin's Next Move on Russia", 800, 400, "Politics", "Russia"),
+            Story("c", "My Sourdough Recipe", 200, 50, "Food"),
+        };
+        var sim = Reports.SimilarStories(stories, "a", 5);
+        Assert.NotEmpty(sim);
+        Assert.Equal("b", sim[0].Story.StoryId);
+        Assert.True(sim[0].Score > 0);
+        Assert.DoesNotContain(sim, x => x.Story.StoryId == "a"); // excludes the target
+        Assert.DoesNotContain(sim, x => x.Story.StoryId == "c"); // zero similarity dropped
+    }
+
+    [Fact]
+    public void TitlePatterns_BucketsByStructuralFeatures()
+    {
+        var stories = new List<StorySnapshot>
+        {
+            Story("q1", "Will Russia Win?", 100, 80, Array.Empty<string>()),
+            Story("q2", "Is It Over?", 100, 60, Array.Empty<string>()),
+            Story("n1", "5 Lessons Learned", 100, 50, Array.Empty<string>()),
+        };
+        stories[0].EarningsUsd = 10m;
+        stories[1].EarningsUsd = 20m;
+        stories[2].EarningsUsd = 5m;
+
+        var pats = Reports.TitlePatterns(stories);
+        var q = pats.Single(p => p.Pattern == "Question headline");
+        Assert.Equal(2, q.Stories);
+        Assert.Equal(0.7, q.AvgReadRatio, 3);   // (0.8 + 0.6) / 2
+        Assert.Equal(15m, q.AvgEarnings);        // (10 + 20) / 2
+        Assert.Contains(pats, p => p.Pattern == "Contains a number" && p.Stories == 1);
+    }
 }
