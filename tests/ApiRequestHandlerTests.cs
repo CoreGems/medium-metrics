@@ -29,6 +29,12 @@ public class ApiRequestHandlerTests
 
         public IReadOnlyDictionary<string, CachedDetail> LoadDetails(string accountId) =>
             Details.TryGetValue(accountId, out var m) ? m : new Dictionary<string, CachedDetail>();
+
+        public Dictionary<string, List<StoryStatPoint>> StoryHistory { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId) =>
+            StoryHistory.TryGetValue($"{accountId}/{storyId}", out var p) ? p : new List<StoryStatPoint>();
     }
 
     private static ApiRequestHandler Handler(IApiDataSource src) => new(src, () => Key);
@@ -392,5 +398,79 @@ public class ApiRequestHandlerTests
     public void StoryDetail_NotCached_404()
     {
         Assert.Equal(404, Handler(Sample()).Handle(Auth("/v1/stories/s1/detail")).Status);
+    }
+
+    // ---- per-story history / daily / referrers / conversions ----
+
+    [Fact]
+    public void StoryHistory_ReturnsLoggedPoints()
+    {
+        var src = Sample();
+        src.StoryHistory["a1/s1"] = new()
+        {
+            new StoryStatPoint { Timestamp = new DateTimeOffset(2026, 6, 5, 12, 0, 0, TimeSpan.Zero), Views = 100, Reads = 60, Impressions = 200, Earnings = 1.00m },
+            new StoryStatPoint { Timestamp = new DateTimeOffset(2026, 6, 6, 12, 0, 0, TimeSpan.Zero), Views = 150, Reads = 90, Impressions = 300, Earnings = 2.50m },
+        };
+        var h = Assert.IsType<StoryHistoryResponse>(Handler(src).Handle(Auth("/v1/stories/s1/history")).Body);
+        Assert.Equal("s1", h.StoryId);
+        Assert.Equal(2, h.Points.Count);
+        Assert.Equal(150, h.Points[1].Views);
+    }
+
+    [Fact]
+    public void StoryHistory_EmptyWhenNoneLogged()
+    {
+        var h = Assert.IsType<StoryHistoryResponse>(Handler(Sample()).Handle(Auth("/v1/stories/s1/history")).Body);
+        Assert.Empty(h.Points);
+    }
+
+    [Fact]
+    public void StoryDaily_ComputesDeltas()
+    {
+        var src = Sample();
+        var off = TimeZoneInfo.Local.GetUtcOffset(new DateTime(2026, 6, 5));
+        var day1 = new DateTimeOffset(2026, 6, 5, 12, 0, 0, off);
+        src.StoryHistory["a1/s1"] = new()
+        {
+            new StoryStatPoint { Timestamp = day1,            Views = 100, Reads = 60, Impressions = 200, Earnings = 1.00m },
+            new StoryStatPoint { Timestamp = day1.AddDays(1), Views = 150, Reads = 90, Impressions = 300, Earnings = 2.50m },
+        };
+        var d = Assert.IsType<StoryDailyResponse>(Handler(src).Handle(Auth("/v1/stories/s1/daily")).Body);
+        Assert.Equal(2, d.Days.Count);
+        Assert.Equal(0, d.Days[0].Views);             // first day, no prior
+        Assert.Equal(50, d.Days[1].Views);            // 150 - 100
+        Assert.Equal(30, d.Days[1].Reads);            // 90 - 60
+        Assert.Equal(1.50m, d.Days[1].EarningsUsd);   // 2.50 - 1.00
+    }
+
+    [Fact]
+    public void StoryReferrers_FromCache_And404()
+    {
+        var src = Sample();
+        src.Details["a1"] = new(StringComparer.Ordinal)
+        {
+            ["s2"] = new CachedDetail(
+                Detail(10, 3, 0, 0, new Referrer { Source = "google.com", Type = "SEARCH", Count = 42 }), Ft),
+        };
+        var r = Assert.IsType<StoryReferrersResponse>(Handler(src).Handle(Auth("/v1/stories/s2/referrers")).Body);
+        Assert.Single(r.Referrers);
+        Assert.Equal("google.com", r.Referrers[0].Source);
+        Assert.Equal(42, r.Referrers[0].Count);
+        Assert.Equal(404, Handler(src).Handle(Auth("/v1/stories/s1/referrers")).Status); // s1 not cached
+    }
+
+    [Fact]
+    public void StoryConversions_RateFromReads_And404()
+    {
+        var src = Sample();  // s1 has reads = 600 in the sample snapshot
+        src.Details["a1"] = new(StringComparer.Ordinal)
+        {
+            ["s1"] = new CachedDetail(Detail(6, 2), Ft),  // followersGained = 6
+        };
+        var c = Assert.IsType<StoryConversionsResponse>(Handler(src).Handle(Auth("/v1/stories/s1/conversions")).Body);
+        Assert.Equal(6, c.FollowersGained);
+        Assert.Equal(600, c.Reads);
+        Assert.Equal(0.01, c.ConversionRateFromReads, 4);  // 6 / 600
+        Assert.Equal(404, Handler(src).Handle(Auth("/v1/stories/s2/conversions")).Status); // s2 not cached
     }
 }

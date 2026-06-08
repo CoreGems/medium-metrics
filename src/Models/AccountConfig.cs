@@ -40,6 +40,9 @@ public sealed class AccountConfig
     /// <summary>Cached per-story detail (funnel/impact/referrers), one JSON file per story id.</summary>
     public string DetailsDir     => Path.Combine(Root, "details");
 
+    /// <summary>Append-only per-story stats time series (one row per story per refresh).</summary>
+    public string StoryHistoryCsvPath => Path.Combine(Root, "stories-history.csv");
+
     /// <summary>WebView2 profile (cookie jar + Cloudflare clearance) — must be per-account.</summary>
     public string WebView2Folder => Path.Combine(Root, "webview2");
 

@@ -124,6 +124,37 @@ public static class Reports
     }
 
     /// <summary>
+    /// Per-day growth for one story from its cumulative point series: the latest cumulative
+    /// values seen each local day, turned into the amount gained that day (vs the prior
+    /// observed day). The first observed day has no prior, so its deltas are 0. Days with no
+    /// observation simply don't appear.
+    /// </summary>
+    public static IReadOnlyList<StoryDailyDelta> DailyStoryDeltas(IEnumerable<StoryStatPoint> points)
+    {
+        var perDay = points
+            .GroupBy(p => p.Timestamp.ToLocalTime().Date)
+            .Select(g => g.OrderBy(p => p.Timestamp).Last())
+            .OrderBy(p => p.Timestamp.ToLocalTime().Date)
+            .ToList();
+
+        var result = new List<StoryDailyDelta>(perDay.Count);
+        StoryStatPoint? prev = null;
+        foreach (var p in perDay)
+        {
+            result.Add(new StoryDailyDelta
+            {
+                Day = p.Timestamp.ToLocalTime().Date,
+                Views = prev is null ? 0 : p.Views - prev.Views,
+                Reads = prev is null ? 0 : p.Reads - prev.Reads,
+                Impressions = prev is null ? 0 : p.Impressions - prev.Impressions,
+                Earnings = prev is null ? 0m : p.Earnings - prev.Earnings,
+            });
+            prev = p;
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Per-tag follower/subscriber gains. Needs a per-story detail (keyed by
     /// <see cref="StorySnapshot.StoryId"/>); stories without a fetched detail are
     /// skipped so partial loads still produce a usable report.

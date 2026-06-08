@@ -69,6 +69,9 @@ public interface IApiDataSource
     /// never fetches it live. Empty if nothing has been cached.
     /// </summary>
     IReadOnlyDictionary<string, CachedDetail> LoadDetails(string accountId);
+
+    /// <summary>One story's logged stats time series (oldest first); empty if none logged yet.</summary>
+    IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId);
 }
 
 // ---- Response DTOs (serialized camelCase, nulls omitted). Shapes per OPENAI_CUSTOM_GPT.md §6. ----
@@ -143,3 +146,22 @@ public sealed record DetailCoverageDto(int StoriesWithDetail, int TotalStories,
 
 public sealed record FollowersByTagResponse(string Account, DetailCoverageDto Coverage,
     IReadOnlyList<TagFollowersDto> Tags);
+
+public sealed record StoryHistoryPointDto(DateTimeOffset Timestamp, long Views, long Reads,
+    double ReadRatio, long Impressions, decimal EarningsUsd);
+
+public sealed record StoryHistoryResponse(string Account, string StoryId,
+    IReadOnlyList<StoryHistoryPointDto> Points);
+
+public sealed record StoryDailyPointDto(string Day, long Views, long Reads,
+    double ReadRatio, long Impressions, decimal EarningsUsd);
+
+public sealed record StoryDailyResponse(string Account, string StoryId,
+    IReadOnlyList<StoryDailyPointDto> Days);
+
+public sealed record StoryReferrersResponse(string Account, string StoryId, DateTimeOffset FetchedAt,
+    IReadOnlyList<ReferrerDto> Referrers);
+
+public sealed record StoryConversionsResponse(string Account, string StoryId, DateTimeOffset FetchedAt,
+    long FollowersGained, long FollowersLost, long NetFollowerCount,
+    long SubscribersGained, long NetSubscriberCount, long Reads, double ConversionRateFromReads);

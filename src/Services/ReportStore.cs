@@ -17,17 +17,22 @@ public sealed class ReportStore
     private const string Header =
         "Timestamp,Followers,TotalViews,TotalReads,TotalImpressions,TotalEarnings,StoryCount";
 
+    private const string StoryHistoryHeader =
+        "Timestamp,StoryId,Views,Reads,Impressions,Earnings";
+
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
 
     private readonly string _csvPath;
     private readonly string _latestPath;
     private readonly string _detailsDir;
+    private readonly string _storyHistoryPath;
 
     public ReportStore(AppSettings settings)
     {
         _csvPath = settings.ReportCsvPath;
         _latestPath = settings.LatestJsonPath;
         _detailsDir = Path.Combine(Path.GetDirectoryName(_latestPath)!, "details");
+        _storyHistoryPath = Path.Combine(Path.GetDirectoryName(_latestPath)!, "stories-history.csv");
     }
 
     /// <summary>Appends exactly one row to report.csv, writing the header on first use.</summary>
@@ -100,6 +105,68 @@ public sealed class ReportStore
             catch (JsonException) { /* skip corrupt cache file */ }
         }
         return map;
+    }
+
+    /// <summary>
+    /// Appends one numeric row per story to stories-history.csv (Timestamp,StoryId,Views,
+    /// Reads,Impressions,Earnings), writing the header on first use. Builds a per-story time
+    /// series forward from the first refresh — latest.json only holds the newest values, so
+    /// this is the only place per-story growth over time is retained.
+    /// </summary>
+    public void AppendStoryHistory(StatsSnapshot snapshot)
+    {
+        EnsureDirectory();
+        bool isNew = !File.Exists(_storyHistoryPath);
+
+        var sb = new StringBuilder();
+        if (isNew) sb.AppendLine(StoryHistoryHeader);
+
+        var ts = snapshot.Timestamp.ToString("o", CultureInfo.InvariantCulture);
+        foreach (var s in snapshot.Stories)
+        {
+            if (string.IsNullOrEmpty(s.StoryId)) continue;
+            sb.Append(ts).Append(',')
+              .Append(s.StoryId).Append(',')
+              .Append(s.Views).Append(',')
+              .Append(s.Reads).Append(',')
+              .Append(s.Impressions).Append(',')
+              .Append(s.EarningsUsd.ToString(CultureInfo.InvariantCulture)).Append('\n');
+        }
+
+        if (sb.Length > 0) File.AppendAllText(_storyHistoryPath, sb.ToString());
+    }
+
+    /// <summary>Per-story time series for one story (file order = oldest first); empty if none yet.</summary>
+    public IReadOnlyList<StoryStatPoint> ReadStoryHistory(string storyId) =>
+        File.Exists(_storyHistoryPath)
+            ? ParseStoryHistory(File.ReadLines(_storyHistoryPath), storyId)
+            : new List<StoryStatPoint>();
+
+    /// <summary>
+    /// Parses one story's points from raw stories-history.csv lines (filtered by id; header
+    /// and malformed lines skipped). Exposed so the local API can parse a shared read.
+    /// </summary>
+    public static IReadOnlyList<StoryStatPoint> ParseStoryHistory(IEnumerable<string> lines, string storyId)
+    {
+        var points = new List<StoryStatPoint>();
+        foreach (var line in lines)
+        {
+            if (line.Length == 0 || line.StartsWith("Timestamp", StringComparison.Ordinal)) continue;
+            var f = line.Split(',');
+            if (f.Length < 6 || !string.Equals(f[1], storyId, StringComparison.Ordinal)) continue;
+            if (!DateTimeOffset.TryParse(f[0], CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind, out var ts))
+                continue;
+            points.Add(new StoryStatPoint
+            {
+                Timestamp = ts,
+                Views = ParseLong(f[2]),
+                Reads = ParseLong(f[3]),
+                Impressions = ParseLong(f[4]),
+                Earnings = ParseDecimal(f[5]),
+            });
+        }
+        return points;
     }
 
     /// <summary>Reads all history rows (skips the header and any malformed lines).</summary>

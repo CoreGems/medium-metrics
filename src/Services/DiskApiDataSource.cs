@@ -69,6 +69,19 @@ public sealed class DiskApiDataSource : IApiDataSource
         return map;
     }
 
+    public IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId)
+    {
+        var settings = LoadSettings();
+        var aref = settings.Accounts.FirstOrDefault(a =>
+            string.Equals(a.Id, accountId, StringComparison.OrdinalIgnoreCase));
+        if (aref is null) return Array.Empty<StoryStatPoint>();
+
+        var text = ReadAllTextShared(Cfg(settings, aref).StoryHistoryCsvPath);
+        return text is null
+            ? Array.Empty<StoryStatPoint>()
+            : ReportStore.ParseStoryHistory(text.Split('\n').Select(l => l.TrimEnd('\r')), storyId);
+    }
+
     /// <summary>By id (case-insensitive), then by handle (snapshot username); null/blank → active account.</summary>
     private static AccountRef? FindAccount(AppSettings settings, string? accountRef)
     {

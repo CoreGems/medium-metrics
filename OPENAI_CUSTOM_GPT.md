@@ -209,6 +209,10 @@ Conventions:
 | `GET /v1/stories` | Story list w/ `search`, `tag`, `sort`, `order`, `limit`, `offset` | `StorySnapshot[]` |
 | `GET /v1/stories/{storyId}` | One story's metadata | `StorySnapshot` |
 | `GET /v1/stories/{storyId}/detail` | Cached funnel/impact/referrers (from last UI fetch) | `details/<id>.json` |
+| `GET /v1/stories/{storyId}/history` | Per-story stats over time (one point per refresh) | `stories-history.csv` |
+| `GET /v1/stories/{storyId}/daily` | Per-day growth for a story (deltas) | `Reports.DailyStoryDeltas` |
+| `GET /v1/stories/{storyId}/referrers` | Traffic sources (views per source) | cached `StoryDetail` |
+| `GET /v1/stories/{storyId}/conversions` | Followers/subscribers gained + rate from reads | cached `StoryDetail` |
 | `GET /v1/tags` | Per-tag metrics, `sort`/`order` | `Reports.MetricsByTag` |
 | `GET /v1/tags/{tag}/stories` | Stories carrying a tag (shortcut for `stories?tag=`) | `StorySnapshot[]` |
 | `GET /v1/tags/followers` | Per-tag follower/subscriber gains + cache `coverage` | `Reports.FollowersByTag` over `details/` |

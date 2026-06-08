@@ -55,6 +55,10 @@ public sealed class ApiRequestHandler
             (2, "stories") => Stories(req),
             (3, "stories") => Story(req, seg[2]),
             (4, "stories") when seg[3] == "detail" => StoryDetailEndpoint(req, seg[2]),
+            (4, "stories") when seg[3] == "history" => StoryHistoryEndpoint(req, seg[2]),
+            (4, "stories") when seg[3] == "daily" => StoryDailyEndpoint(req, seg[2]),
+            (4, "stories") when seg[3] == "referrers" => StoryReferrers(req, seg[2]),
+            (4, "stories") when seg[3] == "conversions" => StoryConversions(req, seg[2]),
             (2, "tags") => Tags(req),
             (3, "tags") when seg[2] == "followers" => FollowersByTag(req),
             (4, "tags") when seg[3] == "stories" => TagStories(req, seg[2]),
@@ -215,6 +219,51 @@ public sealed class ApiRequestHandler
             return Ok(new HistoryResponse(d.Info.Id, list.Select(r => new HistoryRowDto(
                 r.Timestamp, r.Followers, r.TotalViews, r.TotalReads, r.TotalImpressions,
                 Money(r.TotalEarningsUsd), r.StoryCount, Ratio(r.ReadRatio))).ToList()));
+        });
+
+    // Per-story growth (from the appended log) + first-class referrers/conversions (cached detail).
+
+    private ApiResult StoryHistoryEndpoint(ApiRequest req, string id) =>
+        WithAccount(req, d => Ok(new StoryHistoryResponse(d.Info.Id, id,
+            _data.LoadStoryHistory(d.Info.Id, id)
+                .Select(p => new StoryHistoryPointDto(
+                    p.Timestamp, p.Views, p.Reads, Ratio(p.ReadRatio), p.Impressions, Money(p.Earnings)))
+                .ToList())));
+
+    private ApiResult StoryDailyEndpoint(ApiRequest req, string id) =>
+        WithAccount(req, d => Ok(new StoryDailyResponse(d.Info.Id, id,
+            Reports.DailyStoryDeltas(_data.LoadStoryHistory(d.Info.Id, id))
+                .Select(x => new StoryDailyPointDto(
+                    x.Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    x.Views, x.Reads, Ratio(x.ReadRatio), x.Impressions, Money(x.Earnings)))
+                .ToList())));
+
+    private ApiResult StoryReferrers(ApiRequest req, string id) =>
+        WithAccount(req, d =>
+        {
+            var details = _data.LoadDetails(d.Info.Id);
+            if (!details.TryGetValue(id, out var cd))
+                return Error(404, "detail_not_cached",
+                    $"No cached detail for story '{id}'. Open it in the app to fetch and cache it.");
+            return Ok(new StoryReferrersResponse(d.Info.Id, id, cd.FetchedAt,
+                cd.Detail.Referrers.Select(r => new ReferrerDto(r.Source, r.Type, r.Count)).ToList()));
+        });
+
+    private ApiResult StoryConversions(ApiRequest req, string id) =>
+        WithAccount(req, d =>
+        {
+            var details = _data.LoadDetails(d.Info.Id);
+            if (!details.TryGetValue(id, out var cd))
+                return Error(404, "detail_not_cached",
+                    $"No cached detail for story '{id}'. Open it in the app to fetch and cache it.");
+
+            var x = cd.Detail;
+            long reads = d.Latest?.Stories
+                .FirstOrDefault(s => string.Equals(s.StoryId, id, StringComparison.Ordinal))?.Reads ?? 0;
+            double rate = reads > 0 ? Ratio((double)x.FollowersGained / reads) : 0d;
+            return Ok(new StoryConversionsResponse(d.Info.Id, id, cd.FetchedAt,
+                x.FollowersGained, x.FollowersLost, x.NetFollowerCount,
+                x.SubscribersGained, x.NetSubscriberCount, reads, rate));
         });
 
     // ---- Account resolution ----

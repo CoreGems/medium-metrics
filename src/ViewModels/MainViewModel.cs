@@ -109,6 +109,7 @@ public partial class MainViewModel : ObservableObject
         if (persist)
         {
             _store.AppendSnapshot(snapshot);
+            _store.AppendStoryHistory(snapshot);
             _store.SaveLatest(snapshot);
             History.Insert(0, HistoryRow.FromSnapshot(snapshot));
         }
