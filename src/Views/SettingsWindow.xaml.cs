@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
     {
         _app = app;
         InitializeComponent();
+        Icon = AppIcon.Get();
         Refresh();
     }
 

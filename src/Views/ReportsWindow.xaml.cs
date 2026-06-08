@@ -41,6 +41,7 @@ public partial class ReportsWindow : Window
         _daily = Reports.DailyEarnings(history, earningsBaseline);
         _fetchDetail = fetchDetail;
         InitializeComponent();
+        Icon = AppIcon.Get();
         Closed += (_, _) => _cts.Cancel();
         BuildReports();
         BuildEarningsSummary();

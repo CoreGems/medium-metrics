@@ -26,6 +26,7 @@ public partial class StoryStatsWindow : Window
         _fetchDetail = fetchDetail;
         _stories = stories;
         InitializeComponent();
+        Icon = AppIcon.Get();
         SourceInitialized += (_, _) => PositionBesideOwner();
         Loaded += (_, _) => BringToTop();
         // Closing an owned window can activate a window behind the owner; keep the
