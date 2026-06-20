@@ -201,6 +201,14 @@ public partial class MainWindow : Window
 
     private void OnReportsClick(object sender, RoutedEventArgs e) => _app.ShowReports(this);
 
+    /// <summary>Backfills article content for every story not yet captured (for search + the GPT).</summary>
+    private async void OnFetchAllContentClick(object sender, RoutedEventArgs e)
+    {
+        FetchAllContentButton.IsEnabled = false;
+        try { await _app.FetchAllContentAsync(); }
+        finally { FetchAllContentButton.IsEnabled = true; }
+    }
+
     /// <summary>
     /// Double-click a story to open the in-app per-story dashboard; Ctrl+double-click
     /// to open the article in the browser. Resolves the row under the cursor (not

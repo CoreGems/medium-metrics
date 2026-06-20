@@ -6,6 +6,7 @@
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
         <conv:RatioToPercentConverter x:Key="Ratio" />
+        <conv:EarningsDeltaConverter x:Key="EarnDelta" />
         <conv:StringToVisibilityConverter x:Key="StrVis" />
         <conv:InverseBooleanToVisibilityConverter x:Key="NotBoolVis" />
         <BooleanToVisibilityConverter x:Key="BoolVis" />
@@ -98,7 +99,11 @@
             </Grid.RowDefinitions>
 
             <DockPanel Grid.Row="0">
-                <DockPanel DockPanel.Dock="Top" Margin="2,0,0,4">
+                <DockPanel DockPanel.Dock="Top" Margin="2,0,0,4" LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" Text="Stories" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Button DockPanel.Dock="Left" x:Name="FetchAllContentButton" Content="Fetch all content"
+                            Click="OnFetchAllContentClick" Padding="8,2" Margin="12,0,0,0"
+                            ToolTip="Capture article text for every story (skips ones already captured) so search and the GPT can read your prose" />
                     <Grid DockPanel.Dock="Right" Width="220">
                         <TextBox x:Name="StorySearch" Padding="4,2,20,2" VerticalContentAlignment="Center"
                                  TextChanged="OnStorySearchChanged" KeyDown="OnStorySearchKeyDown"
@@ -109,7 +114,6 @@
                                 Background="Transparent" BorderThickness="0" Foreground="#888"
                                 Cursor="Hand" ToolTip="Clear search" Visibility="Collapsed" />
                     </Grid>
-                    <TextBlock Text="Stories" FontWeight="Bold" VerticalAlignment="Center" />
                 </DockPanel>
                 <DataGrid x:Name="StoriesGrid" ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
                           IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
@@ -123,6 +127,7 @@
                         <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />
                         <DataGridTextColumn Header="Impressions" Binding="{Binding Impressions}" Width="100" />
                         <DataGridTextColumn Header="Earnings" Binding="{Binding EarningsUsd, StringFormat=C2}" Width="90" />
+                        <DataGridTextColumn Header="Earnings Δ" SortMemberPath="EarningsDelta" Binding="{Binding EarningsDelta, Converter={StaticResource EarnDelta}}" Width="95" />
                     </DataGrid.Columns>
                 </DataGrid>
             </DockPanel>

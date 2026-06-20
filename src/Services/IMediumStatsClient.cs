@@ -17,6 +17,9 @@ public interface IMediumStatsClient
 
     /// <summary>Fetches extended per-story stats (funnel, impact, referrers) for the dashboard.</summary>
     Task<StoryDetail> FetchStoryDetailAsync(string postId, CancellationToken ct = default);
+
+    /// <summary>Fetches one of your own posts' article content (body text, subtitle, word count).</summary>
+    Task<StoryContent> FetchStoryContentAsync(string postId, CancellationToken ct = default);
 }
 
 /// <summary>Raised when stats cannot be fetched or parsed.</summary>

@@ -237,9 +237,57 @@ public partial class App : Application
     public void ShowStoryDashboard(IReadOnlyList<StorySnapshot> stories, int index, Window owner)
     {
         if (stories.Count == 0) return;
-        var win = new StoryStatsWindow(FetchStoryDetailAsync, stories, index) { Owner = owner };
+        var win = new StoryStatsWindow(FetchStoryDetailAsync, GetCachedContent, FetchStoryContentAsync,
+            stories, index) { Owner = owner };
         win.Show();
         win.Activate();
+    }
+
+    /// <summary>Reads the active account's cached content for a story (no live call); null if not captured.</summary>
+    public StoryContent? GetCachedContent(string postId) => _active.Store.LoadContent(postId);
+
+    /// <summary>
+    /// Backfills article content for every story in the active account that isn't cached yet —
+    /// fetching gently (one at a time, with a small pause) so the whole archive becomes searchable
+    /// and readable by the GPT without opening each story by hand. Already-cached stories are skipped.
+    /// </summary>
+    public async Task FetchAllContentAsync(CancellationToken ct = default)
+    {
+        if (!HasSession)
+        {
+            MessageBox.Show("Sign in first to capture article content.", "Not signed in",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var stories = _active.Vm.Stories.Where(s => !string.IsNullOrEmpty(s.StoryId)).ToList();
+        int total = stories.Count, done = 0, fetched = 0, skipped = 0, failed = 0;
+        try
+        {
+            foreach (var s in stories)
+            {
+                ct.ThrowIfCancellationRequested();
+                done++;
+                if (_active.Store.HasContent(s.StoryId)) { skipped++; continue; }
+
+                _active.Vm.StatusMessage = $"Fetching article content {done}/{total}… ({fetched} new)";
+                try
+                {
+                    var c = await _active.Vm.Client.FetchStoryContentAsync(s.StoryId, ct);
+                    _active.Store.SaveContent(s.StoryId, c);
+                    fetched++;
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex) { failed++; Log.Error($"Content fetch failed for {s.StoryId}", ex); }
+
+                await Task.Delay(300, ct); // gentle on Medium (and on your own account)
+            }
+        }
+        catch (OperationCanceledException) { /* user/window closed; fall through to report progress so far */ }
+
+        _active.Vm.StatusMessage =
+            $"Content capture done — {fetched} new, {skipped} already cached"
+            + (failed > 0 ? $", {failed} failed" : "") + $" (of {total}).";
     }
 
     /// <summary>
@@ -252,7 +300,34 @@ public partial class App : Application
         var detail = await _active.Vm.Client.FetchStoryDetailAsync(postId, ct);
         try { _active.Store.SaveDetail(postId, detail); }
         catch (Exception ex) { Log.Error($"Failed to cache detail for {postId}", ex); }
+
+        // Piggyback a one-time content capture (E2): opening a story also caches its prose so
+        // the local API / Custom GPT can read it. Best-effort and only when not already cached,
+        // so it never slows a re-open or breaks the detail fetch.
+        if (!string.IsNullOrEmpty(postId) && !_active.Store.HasContent(postId))
+            _ = FetchStoryContentAsync(postId, ct);
+
         return detail;
+    }
+
+    /// <summary>
+    /// Fetches one of your own posts' article content for the active account and caches it under
+    /// <c>content/</c>, so the local API can serve <c>/v1/stories/{id}/content</c> and include the
+    /// body in search without another live Medium call. Best-effort: logs and swallows failures.
+    /// </summary>
+    public async Task<StoryContent?> FetchStoryContentAsync(string postId, CancellationToken ct = default)
+    {
+        try
+        {
+            var content = await _active.Vm.Client.FetchStoryContentAsync(postId, ct);
+            _active.Store.SaveContent(postId, content);
+            return content;
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Failed to fetch/cache content for {postId}", ex);
+            return null;
+        }
     }
 
     /// <summary>

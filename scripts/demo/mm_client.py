@@ -25,7 +25,9 @@ for _stream in (sys.stdout, sys.stderr):
         pass
 
 _PORT = os.environ.get("MM_API_PORT", "8780")
-BASE = os.environ.get("MM_API_BASE", f"http://localhost:{_PORT}/v1")
+URL="https://dell717.tail23295d.ts.net/v1"
+#URL=f"http://localhost:{_PORT}/v1"
+BASE = os.environ.get("MM_API_BASE", URL)
 KEY = os.environ.get("MM_API_KEY")
 
 

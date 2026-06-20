@@ -27,6 +27,7 @@ public sealed class ReportStore
     private readonly string _csvPath;
     private readonly string _latestPath;
     private readonly string _detailsDir;
+    private readonly string _contentDir;
     private readonly string _storyHistoryPath;
     private readonly string _titleHistoryPath;
 
@@ -34,9 +35,11 @@ public sealed class ReportStore
     {
         _csvPath = settings.ReportCsvPath;
         _latestPath = settings.LatestJsonPath;
-        _detailsDir = Path.Combine(Path.GetDirectoryName(_latestPath)!, "details");
-        _storyHistoryPath = Path.Combine(Path.GetDirectoryName(_latestPath)!, "stories-history.csv");
-        _titleHistoryPath = Path.Combine(Path.GetDirectoryName(_latestPath)!, "title-history.csv");
+        var root = Path.GetDirectoryName(_latestPath)!;
+        _detailsDir = Path.Combine(root, "details");
+        _contentDir = Path.Combine(root, "content");
+        _storyHistoryPath = Path.Combine(root, "stories-history.csv");
+        _titleHistoryPath = Path.Combine(root, "title-history.csv");
     }
 
     /// <summary>Appends exactly one row to report.csv, writing the header on first use.</summary>
@@ -112,6 +115,50 @@ public sealed class ReportStore
     }
 
     /// <summary>
+    /// Caches one story's captured article content (body text, subtitle, word count) so the
+    /// local API and a Custom GPT can read your prose without another live Medium call. One
+    /// file per story under <c>content/</c>, mirroring <see cref="SaveDetail"/>.
+    /// </summary>
+    public void SaveContent(string storyId, StoryContent content)
+    {
+        if (string.IsNullOrEmpty(storyId)) return;
+        Directory.CreateDirectory(_contentDir);
+        File.WriteAllText(Path.Combine(_contentDir, storyId + ".json"),
+            JsonSerializer.Serialize(content, JsonOpts));
+    }
+
+    /// <summary>True when this story's content has already been captured (avoids re-fetching).</summary>
+    public bool HasContent(string storyId) =>
+        !string.IsNullOrEmpty(storyId) && File.Exists(Path.Combine(_contentDir, storyId + ".json"));
+
+    /// <summary>Loads one story's cached content, or null if not captured / unreadable.</summary>
+    public StoryContent? LoadContent(string storyId)
+    {
+        if (string.IsNullOrEmpty(storyId)) return null;
+        var path = Path.Combine(_contentDir, storyId + ".json");
+        if (!File.Exists(path)) return null;
+        try { return JsonSerializer.Deserialize<StoryContent>(File.ReadAllText(path)); }
+        catch (JsonException) { return null; }
+    }
+
+    /// <summary>Loads all cached per-story content, keyed by story id. Empty if none cached.</summary>
+    public IReadOnlyDictionary<string, StoryContent> LoadContents()
+    {
+        var map = new Dictionary<string, StoryContent>();
+        if (!Directory.Exists(_contentDir)) return map;
+        foreach (var file in Directory.EnumerateFiles(_contentDir, "*.json"))
+        {
+            try
+            {
+                var c = JsonSerializer.Deserialize<StoryContent>(File.ReadAllText(file));
+                if (c is not null) map[Path.GetFileNameWithoutExtension(file)] = c;
+            }
+            catch (JsonException) { /* skip corrupt cache file */ }
+        }
+        return map;
+    }
+
+    /// <summary>
     /// Appends one numeric row per story to stories-history.csv (Timestamp,StoryId,Views,
     /// Reads,Impressions,Earnings), writing the header on first use. Builds a per-story time
     /// series forward from the first refresh — latest.json only holds the newest values, so
@@ -145,6 +192,33 @@ public sealed class ReportStore
         File.Exists(_storyHistoryPath)
             ? ParseStoryHistory(File.ReadLines(_storyHistoryPath), storyId)
             : new List<StoryStatPoint>();
+
+    /// <summary>
+    /// Per-story earnings change between the two most recent recorded refreshes (last − prior),
+    /// keyed by story id. 0 when a story has only one recorded point. Single pass over
+    /// stories-history.csv (file order is chronological).
+    /// </summary>
+    public IReadOnlyDictionary<string, decimal> LatestEarningsDeltas()
+    {
+        var last = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var prev = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        if (!File.Exists(_storyHistoryPath)) return last;
+
+        foreach (var line in File.ReadLines(_storyHistoryPath))
+        {
+            if (line.Length == 0 || line.StartsWith("Timestamp", StringComparison.Ordinal)) continue;
+            var f = line.Split(',');
+            if (f.Length < 6) continue;
+            var id = f[1];
+            if (last.TryGetValue(id, out var lastVal)) prev[id] = lastVal; // shift last -> prior
+            last[id] = ParseDecimal(f[5]);
+        }
+
+        var deltas = new Dictionary<string, decimal>(last.Count, StringComparer.Ordinal);
+        foreach (var kv in last)
+            deltas[kv.Key] = kv.Value - (prev.TryGetValue(kv.Key, out var p) ? p : kv.Value);
+        return deltas;
+    }
 
     /// <summary>
     /// Parses one story's points from raw stories-history.csv lines (filtered by id; header

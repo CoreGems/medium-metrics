@@ -52,8 +52,10 @@ public sealed class ApiRequestHandler
         {
             (2, "accounts") => Accounts(),
             (2, "summary") => Summary(req),
+            (2, "search") => Search(req),
             (2, "stories") => Stories(req),
             (3, "stories") => Story(req, seg[2]),
+            (4, "stories") when seg[3] == "content" => StoryContentEndpoint(req, seg[2]),
             (4, "stories") when seg[3] == "detail" => StoryDetailEndpoint(req, seg[2]),
             (4, "stories") when seg[3] == "history" => StoryHistoryEndpoint(req, seg[2]),
             (4, "stories") when seg[3] == "daily" => StoryDailyEndpoint(req, seg[2]),
@@ -112,6 +114,48 @@ public sealed class ApiRequestHandler
             var sorted = SortStories(q, Str(req, "sort"), Str(req, "order")).ToList();
             var page = sorted.Skip(offset).Take(limit).Select(ToStoryDto).ToList();
             return Ok(new StoriesResponse(d.Info.Id, s.Timestamp, sorted.Count, limit, offset, page));
+        });
+
+    // Relevance-ranked full-text search across the snapshot's stories. Unlike /stories?search=
+    // (a metric-sorted substring filter on title/tags), this scores by match quality and ranks
+    // best-first, so a GPT gets the most relevant of your own articles for a topic. Spans
+    // title + tags today; article body joins the scorer once content capture (E2) lands.
+    private ApiResult Search(ApiRequest req) =>
+        WithSnapshot(req, (d, s) =>
+        {
+            var q = Str(req, "q");
+            if (string.IsNullOrWhiteSpace(q))
+                return Error(400, "missing_query", "Provide a non-empty 'q' query parameter.");
+
+            var (limit, offset) = Page(req);
+            var content = _data.LoadContent(d.Info.Id);
+            StoryContent? ContentFor(string id) =>
+                content.TryGetValue(id, out var c) ? c.Content : null;
+
+            var ranked = Reports.SearchStories(s.Stories, q!, ContentFor);
+            var page = ranked.Skip(offset).Take(limit)
+                .Select(x => new SearchHitDto(ToStoryDto(x.Story), Math.Round(x.Score, 3), x.MatchedIn, x.Snippet))
+                .ToList();
+            var coverage = content.Count > 0 ? "title,tags,body" : "title,tags";
+            return Ok(new SearchResponse(d.Info.Id, s.Timestamp, q!, coverage,
+                ranked.Count, limit, offset, page));
+        });
+
+    // Cache-backed (enabler E2): served from content captured when a story was opened in the
+    // app. 404 content_not_cached until then. This is the #1 headliner — the GPT reads your prose.
+    private ApiResult StoryContentEndpoint(ApiRequest req, string id) =>
+        WithAccount(req, d =>
+        {
+            var content = _data.LoadContent(d.Info.Id);
+            if (!content.TryGetValue(id, out var cc))
+                return Error(404, "content_not_cached",
+                    $"No cached content for story '{id}'. Open it in the app (story dashboard) to fetch and cache it.");
+
+            var c = cc.Content;
+            return Ok(new StoryContentResponse(d.Info.Id, id, cc.FetchedAt,
+                c.Title, c.Subtitle, c.Language, c.Paywalled, c.WordCount, c.ReadingTimeMinutes, c.Url,
+                c.PublishedAt?.ToLocalTime().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                c.BodyText));
         });
 
     private ApiResult Story(ApiRequest req, string id) =>

@@ -23,6 +23,16 @@ public class PersistenceTests
         },
     };
 
+    private static StatsSnapshot SnapshotEarn(DateTimeOffset ts, decimal earnA, decimal earnB) => new()
+    {
+        Timestamp = ts,
+        Stories = new List<StorySnapshot>
+        {
+            new() { StoryId = "a", Title = "A", Views = 100, Reads = 50, Impressions = 300, EarningsUsd = earnA },
+            new() { StoryId = "b", Title = "B", Views = 40,  Reads = 10, Impressions = 120, EarningsUsd = earnB },
+        },
+    };
+
     [Fact]
     public void AppendSnapshot_WritesHeaderOnce_AndOneLinePerCall()
     {
@@ -68,6 +78,29 @@ public class PersistenceTests
         Assert.Equal(7, loaded!.Followers);
         Assert.Equal(2, loaded.Stories.Count);
         Assert.Equal("A", loaded.Stories[0].Title);
+    }
+
+    [Fact]
+    public void LatestEarningsDeltas_ComputesLastMinusPrevious()
+    {
+        var settings = TempSettings();
+        var store = new ReportStore(settings);
+        store.AppendStoryHistory(Snapshot(DateTimeOffset.UnixEpoch, 10));                 // a=1.50, b=0
+        store.AppendStoryHistory(SnapshotEarn(DateTimeOffset.UnixEpoch.AddDays(1), 2.25m, 0.40m));
+
+        var deltas = store.LatestEarningsDeltas();
+        Assert.Equal(0.75m, deltas["a"]);   // 2.25 - 1.50
+        Assert.Equal(0.40m, deltas["b"]);   // 0.40 - 0
+    }
+
+    [Fact]
+    public void LatestEarningsDeltas_ZeroWithOnlyOnePoint()
+    {
+        var settings = TempSettings();
+        var store = new ReportStore(settings);
+        store.AppendStoryHistory(Snapshot(DateTimeOffset.UnixEpoch, 10));
+
+        Assert.Equal(0m, store.LatestEarningsDeltas()["a"]);
     }
 }
 

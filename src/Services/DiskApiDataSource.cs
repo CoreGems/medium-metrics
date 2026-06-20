@@ -69,6 +69,29 @@ public sealed class DiskApiDataSource : IApiDataSource
         return map;
     }
 
+    public IReadOnlyDictionary<string, CachedContent> LoadContent(string accountId)
+    {
+        var settings = LoadSettings();
+        var aref = settings.Accounts.FirstOrDefault(a =>
+            string.Equals(a.Id, accountId, StringComparison.OrdinalIgnoreCase));
+        var map = new Dictionary<string, CachedContent>(StringComparer.Ordinal);
+        if (aref is null) return map;
+
+        var dir = Cfg(settings, aref).ContentDir;
+        if (!Directory.Exists(dir)) return map;
+
+        foreach (var file in Directory.EnumerateFiles(dir, "*.json"))
+        {
+            var content = ReadJsonShared<StoryContent>(file);
+            if (content is null) continue;
+            DateTimeOffset fetchedAt;
+            try { fetchedAt = new DateTimeOffset(File.GetLastWriteTimeUtc(file), TimeSpan.Zero); }
+            catch { fetchedAt = default; }
+            map[Path.GetFileNameWithoutExtension(file)] = new CachedContent(content, fetchedAt);
+        }
+        return map;
+    }
+
     public IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId)
     {
         var settings = LoadSettings();

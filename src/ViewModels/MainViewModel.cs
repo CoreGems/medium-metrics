@@ -115,9 +115,13 @@ public partial class MainViewModel : ObservableObject
             History.Insert(0, HistoryRow.FromSnapshot(snapshot));
         }
 
+        var earningsDeltas = _store.LatestEarningsDeltas();
         Stories.Clear();
         foreach (var s in snapshot.Stories.OrderByDescending(s => s.Views))
+        {
+            s.EarningsDelta = earningsDeltas.TryGetValue(s.StoryId, out var delta) ? delta : 0m;
             Stories.Add(s);
+        }
 
         Followers = snapshot.Followers;
         TotalViews = snapshot.TotalViews;

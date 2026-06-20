@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace MediumMetrics.Models;
 
 /// <summary>
@@ -25,6 +27,13 @@ public sealed class StorySnapshot
 
     /// <summary>Lifetime earnings for this story, in USD.</summary>
     public decimal EarningsUsd { get; set; }
+
+    /// <summary>
+    /// Earnings change since the previous refresh (USD). Display-only — computed by the view
+    /// model from the per-story history; not part of the persisted snapshot.
+    /// </summary>
+    [JsonIgnore]
+    public decimal EarningsDelta { get; set; }
 
     /// <summary>Topic tags applied to the story (display titles, e.g. "Politics"). Empty if none/unknown.</summary>
     public IReadOnlyList<string> Tags { get; set; } = new List<string>();

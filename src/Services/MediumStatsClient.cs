@@ -273,6 +273,113 @@ public sealed class MediumStatsClient : IMediumStatsClient
         }
     }
 
+    // Best-reconstruction of Medium's per-post content query. For your OWN posts (authed as the
+    // author) the full body is returned without metering options. If Medium's real shape differs
+    // (e.g. content needs an argument), the raw response is dumped to content-PostContentQuery.json
+    // beside the error dump — refine the query/parser from that, the same way the stats query was found.
+    private const string ContentQuery =
+        "query PostContentQuery($postId: ID!) {" +
+        " post(id: $postId) {" +
+        " id title mediumUrl firstPublishedAt isLocked detectedLanguage" +
+        " extendedPreviewContent { subtitle }" +
+        " content { bodyModel { paragraphs { type text } } } } }";
+
+    /// <summary>
+    /// Fetches one of your own posts' article content (body text, subtitle, language, paywall
+    /// flag) from Medium's post-content GraphQL query. Word count and reading time are computed
+    /// locally. Mirrors <see cref="FetchStoryDetailAsync"/>: one POST, raw dump for debugging.
+    /// </summary>
+    public async Task<StoryContent> FetchStoryContentAsync(string postId, CancellationToken ct = default)
+    {
+        var body = JsonSerializer.Serialize(new[]
+            { new { operationName = "PostContentQuery", variables = new { postId }, query = ContentQuery } });
+        FetchResult res = await _postJson(GraphQlUrl, body, ct);
+        DumpDetailResponse("PostContentQuery", res); // raw dump so the real shape can be inspected/refined
+
+        if (res.Status is 401 or 403)
+            throw new MediumStatsException($"Medium rejected the content request (HTTP {res.Status}).", isAuthFailure: true);
+        if (res.Status is < 200 or >= 400)
+        {
+            DumpDiagnostics(GraphQlUrl, res);
+            throw new MediumStatsException($"Medium content query returned HTTP {res.Status}.");
+        }
+
+        JsonDocument doc;
+        try { doc = JsonDocument.Parse(res.Body); }
+        catch (JsonException ex)
+        {
+            DumpDiagnostics(GraphQlUrl, res);
+            throw new MediumStatsException("Could not parse Medium content response.", inner: ex);
+        }
+
+        using (doc)
+        {
+            var element = doc.RootElement.ValueKind == JsonValueKind.Array
+                ? (doc.RootElement.GetArrayLength() > 0 ? doc.RootElement[0] : default)
+                : doc.RootElement;
+
+            if (!TryGetPath(element, out var post, "data", "post") || post.ValueKind != JsonValueKind.Object)
+            {
+                DumpDiagnostics(GraphQlUrl, res);
+                throw new MediumStatsException("Unexpected GraphQL shape (no data.post in content response).");
+            }
+
+            var title = GetString(post, "title") ?? "";
+            string? subtitle = TryGetPath(post, out var epc, "extendedPreviewContent")
+                ? GetString(epc, "subtitle") : null;
+            var bodyText = BuildBodyText(post, title, subtitle);
+            int words = CountWords(bodyText);
+
+            return new StoryContent
+            {
+                StoryId = GetString(post, "id") ?? postId,
+                Title = title,
+                Subtitle = string.IsNullOrWhiteSpace(subtitle) ? null : subtitle,
+                BodyText = bodyText,
+                WordCount = words,
+                ReadingTimeMinutes = words > 0 ? (int)Math.Ceiling(words / 265.0) : 0,
+                Language = GetString(post, "detectedLanguage"),
+                Paywalled = post.TryGetProperty("isLocked", out var locked) && locked.ValueKind == JsonValueKind.True,
+                Url = GetString(post, "mediumUrl") ?? "",
+                PublishedAt = GetTimestampMs(post, "firstPublishedAt"),
+            };
+        }
+    }
+
+    /// <summary>
+    /// Flattens content.bodyModel.paragraphs into plain text: each non-empty paragraph's text,
+    /// joined by blank lines. A leading paragraph that merely repeats the title or subtitle
+    /// (Medium often emits the title/deck as the first body paragraphs) is dropped to avoid
+    /// duplication. Non-text paragraphs (images/embeds) contribute only any caption text.
+    /// </summary>
+    private static string BuildBodyText(JsonElement post, string title, string? subtitle)
+    {
+        if (!TryGetPath(post, out var paragraphs, "content", "bodyModel", "paragraphs")
+            || paragraphs.ValueKind != JsonValueKind.Array)
+            return "";
+
+        var parts = new List<string>();
+        bool atStart = true;
+        foreach (var p in paragraphs.EnumerateArray())
+        {
+            var text = GetString(p, "text");
+            if (string.IsNullOrWhiteSpace(text)) continue;
+            var trimmed = text.Trim();
+            // Skip the title/subtitle echoed as the first body paragraph(s).
+            if (atStart && (string.Equals(trimmed, title.Trim(), StringComparison.Ordinal)
+                            || (subtitle is not null && string.Equals(trimmed, subtitle.Trim(), StringComparison.Ordinal))))
+                continue;
+            atStart = false;
+            parts.Add(trimmed);
+        }
+        return string.Join("\n\n", parts);
+    }
+
+    private static int CountWords(string text) =>
+        string.IsNullOrWhiteSpace(text)
+            ? 0
+            : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
     /// <summary>Builds the batched GraphQL request body for one page of story stats.</summary>
     private static string BuildStatsQuery(string username, string after)
     {

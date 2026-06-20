@@ -30,6 +30,12 @@ public class ApiRequestHandlerTests
         public IReadOnlyDictionary<string, CachedDetail> LoadDetails(string accountId) =>
             Details.TryGetValue(accountId, out var m) ? m : new Dictionary<string, CachedDetail>();
 
+        public Dictionary<string, Dictionary<string, CachedContent>> Content { get; } =
+            new(StringComparer.OrdinalIgnoreCase);
+
+        public IReadOnlyDictionary<string, CachedContent> LoadContent(string accountId) =>
+            Content.TryGetValue(accountId, out var m) ? m : new Dictionary<string, CachedContent>();
+
         public Dictionary<string, List<StoryStatPoint>> StoryHistory { get; } =
             new(StringComparer.OrdinalIgnoreCase);
 
@@ -261,6 +267,110 @@ public class ApiRequestHandlerTests
     public void Story_NotFound_404()
     {
         Assert.Equal(404, Handler(Sample()).Handle(Auth("/v1/stories/nope")).Status);
+    }
+
+    // ---- search ----
+
+    [Fact]
+    public void Search_MissingOrBlankQuery_400()
+    {
+        Assert.Equal(400, Handler(Sample()).Handle(Auth("/v1/search")).Status);
+        Assert.Equal(400, Handler(Sample()).Handle(Auth("/v1/search", ("q", "   "))).Status);
+    }
+
+    [Fact]
+    public void Search_MatchesTitleToken_AndReportsField()
+    {
+        var r = Assert.IsType<SearchResponse>(Handler(Sample()).Handle(Auth("/v1/search", ("q", "politics"))).Body);
+        Assert.Equal("politics", r.Query);
+        Assert.Equal("title,tags", r.Coverage);
+        Assert.Equal(1, r.Total);
+        Assert.Equal("s2", r.Results[0].Story.StoryId);
+        Assert.Contains("title", r.Results[0].MatchedIn);
+        Assert.True(r.Results[0].Score > 0);
+    }
+
+    [Fact]
+    public void Search_MatchesTagToken()
+    {
+        var r = Assert.IsType<SearchResponse>(Handler(Sample()).Handle(Auth("/v1/search", ("q", "tech"))).Body);
+        Assert.Equal(new[] { "s1" }, r.Results.Select(x => x.Story.StoryId).ToList());
+        Assert.Contains("tags", r.Results[0].MatchedIn);
+    }
+
+    [Fact]
+    public void Search_TitleOutranksTag_DespiteFewerViews()
+    {
+        var snap = new StatsSnapshot
+        {
+            Timestamp = new DateTimeOffset(2026, 6, 7, 8, 0, 0, TimeSpan.Zero),
+            Stories = new List<StorySnapshot>
+            {
+                St("tagonly",  "Daily Notes",   5000, 100, 1m, 2026, "Russia"),    // tag hit, lots of views
+                St("titlehit", "Russia Rising",  100,  50, 1m, 2026, "Politics"),  // title hit, few views
+            },
+        };
+        var r = Assert.IsType<SearchResponse>(Handler(SourceWith(snap)).Handle(Auth("/v1/search", ("q", "russia"))).Body);
+        Assert.Equal(2, r.Total);
+        Assert.Equal("titlehit", r.Results[0].Story.StoryId);   // title weight beats tag + the view tiebreak
+    }
+
+    [Fact]
+    public void Search_RanksMultiTermAndPaginates()
+    {
+        var r = Assert.IsType<SearchResponse>(
+            Handler(Sample()).Handle(Auth("/v1/search", ("q", "politics today"), ("limit", "1"))).Body);
+        Assert.Equal("s2", r.Results[0].Story.StoryId);   // both terms + exact title phrase
+        Assert.Single(r.Results);
+        Assert.Equal(1, r.Limit);
+    }
+
+    [Fact]
+    public void Search_IncludesBodyWhenContentCached_WithSnippetAndCoverage()
+    {
+        var src = Sample();   // "entanglement" appears only in s3's captured body, nowhere in titles/tags
+        src.Content["a1"] = new(StringComparer.Ordinal)
+        {
+            ["s3"] = Content("s3", "This essay explores quantum entanglement in plain language.", words: 8),
+        };
+        var r = Assert.IsType<SearchResponse>(Handler(src).Handle(Auth("/v1/search", ("q", "entanglement"))).Body);
+        Assert.Equal("title,tags,body", r.Coverage);
+        Assert.Equal("s3", r.Results[0].Story.StoryId);
+        Assert.Contains("body", r.Results[0].MatchedIn);
+        Assert.NotNull(r.Results[0].Snippet);
+        Assert.Contains("entanglement", r.Results[0].Snippet!);
+    }
+
+    // ---- content (cache-backed, enabler E2) ----
+
+    private static CachedContent Content(string id, string body, string? subtitle = null,
+        int words = 0, bool paywalled = false) => new(new StoryContent
+        {
+            StoryId = id, Title = "T-" + id, Subtitle = subtitle, BodyText = body,
+            WordCount = words, ReadingTimeMinutes = words > 0 ? (int)Math.Ceiling(words / 265.0) : 0,
+            Language = "en", Paywalled = paywalled, Url = "https://medium.com/p/" + id,
+        }, Ft);
+
+    [Fact]
+    public void StoryContent_Cached_ReturnsBodyAndFields()
+    {
+        var src = Sample();
+        src.Content["a1"] = new(StringComparer.Ordinal)
+        {
+            ["s1"] = Content("s1", "The full body about politics and Russia.", subtitle: "A deck", words: 7),
+        };
+        var c = Assert.IsType<StoryContentResponse>(Handler(src).Handle(Auth("/v1/stories/s1/content")).Body);
+        Assert.Equal("s1", c.StoryId);
+        Assert.Equal("A deck", c.Subtitle);
+        Assert.Contains("Russia", c.BodyText);
+        Assert.Equal(7, c.WordCount);
+        Assert.Equal(Ft, c.FetchedAt);
+    }
+
+    [Fact]
+    public void StoryContent_NotCached_404()
+    {
+        Assert.Equal(404, Handler(Sample()).Handle(Auth("/v1/stories/s1/content")).Status);
     }
 
     // ---- tags ----

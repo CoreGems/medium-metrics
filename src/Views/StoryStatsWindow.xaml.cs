@@ -14,6 +14,8 @@ namespace MediumMetrics.Views;
 public partial class StoryStatsWindow : Window
 {
     private readonly Func<string, CancellationToken, Task<StoryDetail>> _fetchDetail;
+    private readonly Func<string, StoryContent?> _getCachedContent;
+    private readonly Func<string, CancellationToken, Task<StoryContent?>> _fetchContent;
     private readonly IReadOnlyList<StorySnapshot> _stories;
     private int _index;
     private StorySnapshot _story = null!;
@@ -21,9 +23,13 @@ public partial class StoryStatsWindow : Window
 
     public StoryStatsWindow(
         Func<string, CancellationToken, Task<StoryDetail>> fetchDetail,
+        Func<string, StoryContent?> getCachedContent,
+        Func<string, CancellationToken, Task<StoryContent?>> fetchContent,
         IReadOnlyList<StorySnapshot> stories, int index)
     {
         _fetchDetail = fetchDetail;
+        _getCachedContent = getCachedContent;
+        _fetchContent = fetchContent;
         _stories = stories;
         InitializeComponent();
         Icon = AppIcon.Get();
@@ -95,7 +101,53 @@ public partial class StoryStatsWindow : Window
         PrevButton.IsEnabled = _index > 0;
         NextButton.IsEnabled = _index < _stories.Count - 1;
 
+        ContentStatus.Text = "";
+        ShowContent(_getCachedContent(_story.StoryId));
+
         _ = LoadDetailAsync();
+    }
+
+    /// <summary>Populates the Content tab from captured content, or a prompt when none is cached.</summary>
+    private void ShowContent(StoryContent? c)
+    {
+        if (c is null)
+        {
+            ContentSubtitle.Visibility = Visibility.Collapsed;
+            ContentMeta.Text = "Not captured yet — click “Fetch content”.";
+            ContentBody.Text = "";
+            return;
+        }
+
+        ContentSubtitle.Text = c.Subtitle ?? "";
+        ContentSubtitle.Visibility = string.IsNullOrWhiteSpace(c.Subtitle) ? Visibility.Collapsed : Visibility.Visible;
+
+        var bits = new List<string> { $"{c.WordCount:N0} words", $"{c.ReadingTimeMinutes} min read" };
+        if (!string.IsNullOrWhiteSpace(c.Language)) bits.Add(c.Language!);
+        if (c.Paywalled) bits.Add("Member-only");
+        ContentMeta.Text = string.Join("  ·  ", bits);
+
+        ContentBody.Text = c.BodyText;
+    }
+
+    private async void OnFetchContentClick(object sender, RoutedEventArgs e)
+    {
+        var postId = _story.StoryId;
+        if (string.IsNullOrEmpty(postId)) { ContentStatus.Text = "No story id."; return; }
+
+        FetchContentButton.IsEnabled = false;
+        ContentStatus.Text = "Fetching content…";
+        try
+        {
+            var c = await _fetchContent(postId, CancellationToken.None);
+            if (!string.Equals(_story.StoryId, postId, StringComparison.Ordinal))
+                return; // navigated away while in flight
+            ShowContent(c);
+            ContentStatus.Text = c is null ? "Couldn’t fetch content — see log." : $"Fetched {DateTime.Now:HH:mm:ss}.";
+        }
+        finally
+        {
+            FetchContentButton.IsEnabled = true;
+        }
     }
 
     private async Task LoadDetailAsync()

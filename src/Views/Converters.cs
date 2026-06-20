@@ -33,3 +33,13 @@ public sealed class InverseBooleanToVisibilityConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture)
         => Binding.DoNothing;
 }
+
+/// <summary>Formats an earnings delta (USD) with a sign: 1.5 -> "+$1.50", -0.2 -> "-$0.20", 0 -> "$0.00".</summary>
+public sealed class EarningsDeltaConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object? parameter, CultureInfo culture)
+        => value is decimal d ? d.ToString("+$0.00;-$0.00;$0.00", culture) : "";
+
+    public object ConvertBack(object value, Type targetType, object? parameter, CultureInfo culture)
+        => Binding.DoNothing;
+}

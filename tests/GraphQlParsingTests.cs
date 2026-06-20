@@ -103,6 +103,46 @@ public class GraphQlParsingTests
     }
 
     [Fact]
+    public async Task FetchStoryContentAsync_ParsesBodyDropsTitleEchoComputesWordCount()
+    {
+        // Shape of the PostContentQuery response (single-op array). Leading paragraphs that echo
+        // the title/subtitle are dropped; empty (image) paragraphs are skipped.
+        const string content =
+            "[{\"data\":{\"post\":{\"id\":\"p1\",\"title\":\"My Title\",\"mediumUrl\":\"https://medium.com/p/p1\"," +
+            "\"firstPublishedAt\":1780095365314,\"isLocked\":true,\"detectedLanguage\":\"en\"," +
+            "\"extendedPreviewContent\":{\"subtitle\":\"A short deck\"}," +
+            "\"content\":{\"bodyModel\":{\"paragraphs\":[" +
+            "{\"type\":\"H3\",\"text\":\"My Title\"}," +
+            "{\"type\":\"H4\",\"text\":\"A short deck\"}," +
+            "{\"type\":\"P\",\"text\":\"First paragraph about Russia.\"}," +
+            "{\"type\":\"P\",\"text\":\"Second paragraph here.\"}," +
+            "{\"type\":\"IMG\",\"text\":\"\"}" +
+            "]}}}}}]";
+
+        var client = new MediumStatsClient(Get(MeJson), (_, _, _) => Task.FromResult(new FetchResult(200, content)));
+        var c = await client.FetchStoryContentAsync("p1");
+
+        Assert.Equal("p1", c.StoryId);
+        Assert.Equal("My Title", c.Title);
+        Assert.Equal("A short deck", c.Subtitle);
+        Assert.True(c.Paywalled);
+        Assert.Equal("en", c.Language);
+        Assert.StartsWith("First paragraph about Russia.", c.BodyText);
+        Assert.Contains("Second paragraph here.", c.BodyText);
+        Assert.DoesNotContain("My Title", c.BodyText);   // title echo dropped
+        Assert.Equal(7, c.WordCount);
+        Assert.Equal(1, c.ReadingTimeMinutes);
+    }
+
+    [Fact]
+    public async Task FetchStoryContentAsync_ThrowsAuthFailure_On403()
+    {
+        var client = new MediumStatsClient(Get(MeJson), (_, _, _) => Task.FromResult(new FetchResult(403, "")));
+        var ex = await Assert.ThrowsAsync<MediumStatsException>(() => client.FetchStoryContentAsync("p1"));
+        Assert.True(ex.IsAuthFailure);
+    }
+
+    [Fact]
     public async Task FetchAsync_ThrowsAuthFailure_OnGraphql403()
     {
         var client = new MediumStatsClient(Get(MeJson), (_, _, _) => Task.FromResult(new FetchResult(403, "")));

@@ -33,6 +33,20 @@
         "responses": { "200": { "description": "OK" } }
       }
     },
+    "/search": {
+      "get": {
+        "operationId": "searchStories",
+        "summary": "Relevance-ranked full-text search across the user's own stories (title, tags, and article body where captured). Returns best matches first with a score, matched fields, and a snippet. Use it to find which articles cover a topic by content, then open them.",
+        "description": "The 'coverage' field reports what was indexed: 'title,tags,body' once article content has been captured, otherwise 'title,tags'.",
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "description": "Search terms. Multiple words are matched individually; an exact title phrase ranks highest.", "schema": { "type": "string" } },
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 50, "maximum": 200 } },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "default": 0 } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
     "/stories": {
       "get": {
         "operationId": "listStories",
@@ -53,6 +67,17 @@
       "get": {
         "operationId": "getStory",
         "summary": "One story's metadata.",
+        "parameters": [
+          { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
+          { "name": "storyId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/stories/{storyId}/content": {
+      "get": {
+        "operationId": "getStoryContent",
+        "summary": "The article's captured content (body text, subtitle, word count, reading time, language, paywall flag) so the assistant can analyze the user's actual prose. Returns 404 until the story is opened in the app to capture it.",
         "parameters": [
           { "name": "account", "in": "query", "required": false, "description": "Account id or handle; defaults to the active account.", "schema": { "type": "string" } },
           { "name": "storyId", "in": "path", "required": true, "schema": { "type": "string" } }

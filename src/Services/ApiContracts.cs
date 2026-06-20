@@ -44,6 +44,9 @@ public sealed class AccountData
 /// <summary>A cached per-story detail plus when it was fetched (the cache file's mtime).</summary>
 public sealed record CachedDetail(StoryDetail Detail, DateTimeOffset FetchedAt);
 
+/// <summary>A cached per-story article content plus when it was fetched (the cache file's mtime).</summary>
+public sealed record CachedContent(StoryContent Content, DateTimeOffset FetchedAt);
+
 /// <summary>
 /// Read-only source of account data for the API. The production implementation
 /// (<see cref="DiskApiDataSource"/>) reads the same local files the app writes; tests
@@ -69,6 +72,13 @@ public interface IApiDataSource
     /// never fetches it live. Empty if nothing has been cached.
     /// </summary>
     IReadOnlyDictionary<string, CachedDetail> LoadDetails(string accountId);
+
+    /// <summary>
+    /// Cached per-story article content (body text, subtitle, word count), keyed by story id.
+    /// Populated when a story is opened in the app (enabler E2); the API never fetches it live.
+    /// Empty if nothing has been cached.
+    /// </summary>
+    IReadOnlyDictionary<string, CachedContent> LoadContent(string accountId);
 
     /// <summary>One story's logged stats time series (oldest first); empty if none logged yet.</summary>
     IReadOnlyList<StoryStatPoint> LoadStoryHistory(string accountId, string storyId);
@@ -99,7 +109,20 @@ public sealed record StoryDto(string StoryId, string Title, string Url, string? 
 public sealed record StoriesResponse(string Account, DateTimeOffset CapturedAt,
     int Total, int Limit, int Offset, IReadOnlyList<StoryDto> Stories);
 
+/// <summary>One search hit: the story, its relevance score, which fields matched, and an
+/// optional excerpt. <see cref="Snippet"/> is reserved for an article-body excerpt and stays
+/// null until content capture (E2) is built; nulls are omitted from the JSON.</summary>
+public sealed record SearchHitDto(StoryDto Story, double Score,
+    IReadOnlyList<string> MatchedIn, string? Snippet);
+
+public sealed record SearchResponse(string Account, DateTimeOffset CapturedAt, string Query,
+    string Coverage, int Total, int Limit, int Offset, IReadOnlyList<SearchHitDto> Results);
+
 public sealed record StoryResponse(string Account, DateTimeOffset CapturedAt, StoryDto Story);
+
+public sealed record StoryContentResponse(string Account, string StoryId, DateTimeOffset FetchedAt,
+    string Title, string? Subtitle, string? Language, bool Paywalled,
+    int WordCount, int ReadingTimeMinutes, string? Url, string? PublishedAt, string BodyText);
 
 public sealed record TagDto(string Tag, int Stories, long Views, long Reads, long Impressions,
     long Claps, decimal Earnings, double ReadRatio, decimal EarningsPerStory);

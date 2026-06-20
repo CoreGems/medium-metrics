@@ -242,6 +242,101 @@ public static class Reports
         return result.OrderByDescending(p => p.AvgEarnings).ToList();
     }
 
+    /// <summary>
+    /// Relevance search over the story corpus. Splits <paramref name="query"/> into terms and
+    /// scores each story by where the terms hit: a title token match weighs most (3), a title
+    /// substring 1.5, a tag token 2, a tag substring 1, a body token 1, a body substring 0.5,
+    /// and an exact multi-word title phrase adds a 4 bonus. Body is scored only when
+    /// <paramref name="contentFor"/> supplies captured content for that story (enabler E2), and
+    /// a matching body yields a <c>Snippet</c> excerpt. Returns stories with a positive score,
+    /// best first (views break ties), each tagged with which fields matched.
+    /// </summary>
+    public static IReadOnlyList<(StorySnapshot Story, double Score, IReadOnlyList<string> MatchedIn, string? Snippet)>
+        SearchStories(IEnumerable<StorySnapshot> stories, string query,
+            Func<string, StoryContent?>? contentFor = null)
+    {
+        var rawTerms = Tokenize(query);
+        if (rawTerms.Count == 0)
+            return Array.Empty<(StorySnapshot, double, IReadOnlyList<string>, string?)>();
+
+        var terms = rawTerms.Distinct().ToList();
+        var phraseNorm = string.Join(' ', rawTerms);
+        bool multiWord = rawTerms.Count > 1;
+
+        var results = new List<(StorySnapshot Story, double Score, IReadOnlyList<string> MatchedIn, string? Snippet)>();
+        foreach (var s in stories)
+        {
+            var titleLower = s.Title.ToLowerInvariant();
+            var titleTokenList = Tokenize(titleLower);
+            var titleTokens = titleTokenList.ToHashSet();
+            var tags = s.Tags.Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0).ToList();
+            var tagText = string.Join(' ', tags);
+            var tagTokens = Tokenize(tagText).ToHashSet();
+
+            var body = contentFor?.Invoke(s.StoryId)?.BodyText ?? "";
+            var bodyLower = body.ToLowerInvariant();
+            var bodyTokens = bodyLower.Length > 0 ? Tokenize(bodyLower).ToHashSet() : new HashSet<string>();
+
+            double score = 0;
+            bool inTitle = false, inTags = false, inBody = false;
+            foreach (var term in terms)
+            {
+                if (titleTokens.Contains(term)) { score += 3; inTitle = true; }
+                else if (titleLower.Contains(term)) { score += 1.5; inTitle = true; }
+
+                if (tagTokens.Contains(term)) { score += 2; inTags = true; }
+                else if (tagText.Length > 0 && tagText.Contains(term)) { score += 1; inTags = true; }
+
+                if (bodyTokens.Contains(term)) { score += 1; inBody = true; }
+                else if (bodyLower.Length > 0 && bodyLower.Contains(term)) { score += 0.5; inBody = true; }
+            }
+            if (multiWord && string.Join(' ', titleTokenList).Contains(phraseNorm)) { score += 4; inTitle = true; }
+
+            if (score <= 0) continue;
+            var matched = new List<string>(3);
+            if (inTitle) matched.Add("title");
+            if (inTags) matched.Add("tags");
+            if (inBody) matched.Add("body");
+            results.Add((s, score, matched, inBody ? MakeSnippet(body, terms) : null));
+        }
+
+        return results
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.Story.Views)
+            .ToList();
+    }
+
+    /// <summary>A ~200-char body excerpt centred on the first matching term, word-trimmed with
+    /// ellipses. Null if no term is found in the body.</summary>
+    private static string? MakeSnippet(string body, IReadOnlyList<string> terms)
+    {
+        var lower = body.ToLowerInvariant();
+        int at = -1;
+        foreach (var term in terms)
+        {
+            int i = lower.IndexOf(term, StringComparison.Ordinal);
+            if (i >= 0 && (at < 0 || i < at)) at = i;
+        }
+        if (at < 0) return null;
+
+        const int radius = 100;
+        int start = Math.Max(0, at - radius);
+        int end = Math.Min(body.Length, at + radius);
+        // Snap to word boundaries so we don't cut mid-word.
+        while (start > 0 && !char.IsWhiteSpace(body[start - 1])) start--;
+        while (end < body.Length && !char.IsWhiteSpace(body[end])) end++;
+
+        var excerpt = body[start..end].Replace('\n', ' ').Trim();
+        if (start > 0) excerpt = "…" + excerpt;
+        if (end < body.Length) excerpt += "…";
+        return excerpt;
+    }
+
+    /// <summary>Lowercase, split on non-alphanumeric, drop empties. No stopword removal — a
+    /// search query's words are all meaningful (unlike <see cref="TitleTokens"/>).</summary>
+    private static List<string> Tokenize(string text) =>
+        Regex.Split(text.ToLowerInvariant(), "[^a-z0-9]+").Where(w => w.Length > 0).ToList();
+
     private static HashSet<string> TagSet(StorySnapshot s) =>
         s.Tags.Select(t => t.Trim().ToLowerInvariant()).Where(t => t.Length > 0).ToHashSet();
 

@@ -50,4 +50,28 @@ public sealed class FakeMediumStatsClient : IMediumStatsClient
                 new() { Source = "medium.com", Type = "INTERNAL", Count = 73 },
             },
         });
+
+    public Task<StoryContent> FetchStoryContentAsync(string postId, CancellationToken ct = default)
+    {
+        var body =
+            "I built a small WPF app to track my own Medium readership locally, instead of " +
+            "refreshing the stats page. This post walks through why local-first tooling beats " +
+            "a dashboard you don't control, and how a weekend project turned into something I " +
+            "use every day.\n\n" +
+            "The core idea: capture the numbers gently from your own account, store them on disk, " +
+            "and expose a tiny read-only API a Custom GPT can query.";
+        int words = body.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+        return Task.FromResult(new StoryContent
+        {
+            StoryId = postId,
+            Title = "A Tiny WPF App in a Weekend",
+            Subtitle = "Local-first tooling beats a dashboard you don't control.",
+            BodyText = body,
+            WordCount = words,
+            ReadingTimeMinutes = (int)Math.Ceiling(words / 265.0),
+            Language = "en",
+            Paywalled = false,
+            Url = "https://medium.com/",
+        });
+    }
 }
