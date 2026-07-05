@@ -238,7 +238,7 @@ public partial class App : Application
     {
         if (stories.Count == 0) return;
         var win = new StoryStatsWindow(FetchStoryDetailAsync, GetCachedContent, FetchStoryContentAsync,
-            stories, index) { Owner = owner };
+            _active.Store.ReadStoryHistory, stories, index) { Owner = owner };
         win.Show();
         win.Activate();
     }

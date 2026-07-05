@@ -1,0 +1,10 @@
+<UserControl x:Class="MediumMetrics.Views.EarningsChart"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Border BorderBrush="#EEE" BorderThickness="1" Background="White">
+        <Canvas x:Name="PlotCanvas" ClipToBounds="True" Background="Transparent"
+                SizeChanged="OnCanvasSizeChanged"
+                MouseMove="OnCanvasMouseMove"
+                MouseLeave="OnCanvasMouseLeave" />
+    </Border>
+</UserControl>

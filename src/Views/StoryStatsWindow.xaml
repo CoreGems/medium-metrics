@@ -46,13 +46,12 @@
             <Button Content="Close" Click="OnCloseClick" Padding="16,6" />
         </StackPanel>
 
-        <!-- Fill area: Stats (numbers + traffic) and Content (captured prose) tabs -->
+        <!-- Fill area: Stats (numbers), Traffic sources, Payout History, and Content tabs -->
         <TabControl>
         <TabItem Header="Stats">
-        <!-- tiles are Auto-height; the traffic-sources grid takes the rest and grows with the window -->
+        <!-- headline + impact tiles are Auto-height; a spacer row lets them sit at the top -->
         <Grid Margin="0,8,0,0">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
@@ -82,21 +81,55 @@
                     <StackPanel><TextBlock x:Name="CtrText" Text="—" Style="{StaticResource Big}" /><TextBlock Text="Feed click-through" Style="{StaticResource Label}" /></StackPanel>
                 </UniformGrid>
             </StackPanel>
-
-            <!-- Traffic sources header -->
-            <TextBlock Grid.Row="2" Text="Traffic sources" FontWeight="SemiBold" Margin="0,18,0,8" />
-
-            <!-- Referrers list: fills the remaining space and grows as the window is resized -->
-            <DataGrid x:Name="ReferrersGrid" Grid.Row="3" AutoGenerateColumns="False" IsReadOnly="True"
-                      HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
-                      VerticalScrollBarVisibility="Auto">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="*" />
-                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="120" />
-                    <DataGridTextColumn Header="Views" Binding="{Binding Count}" Width="90" />
-                </DataGrid.Columns>
-            </DataGrid>
         </Grid>
+        </TabItem>
+
+        <!-- Traffic sources tab: referrers from the on-demand per-story detail -->
+        <TabItem Header="Traffic sources">
+            <DockPanel Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Top" Text="Where this story's views came from"
+                           Foreground="#777" FontSize="12" Margin="0,0,0,8" />
+                <!-- Referrers list: fills the tab and grows as the window is resized -->
+                <DataGrid x:Name="ReferrersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                          VerticalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="*" />
+                        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="120" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding Count}" Width="90" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </TabItem>
+
+        <!-- Payout History tab: this story's day-by-day gains from stories-history.csv -->
+        <TabItem Header="Payout History">
+            <DockPanel Margin="0,8,0,0">
+                <TextBlock x:Name="PayoutStatus" DockPanel.Dock="Top" Foreground="#777" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,0,0,8" />
+                <TabControl>
+                    <!-- Table: one row per observed day (amount gained + cumulative total) -->
+                    <TabItem Header="Table">
+                        <DataGrid x:Name="PayoutGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                                  VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="110" />
+                                <DataGridTextColumn Header="Earned" Binding="{Binding Earned, StringFormat=C2}" Width="90" />
+                                <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C2}" Width="90" />
+                                <DataGridTextColumn Header="Views" Binding="{Binding Views, StringFormat=N0}" Width="70" />
+                                <DataGridTextColumn Header="Reads" Binding="{Binding Reads, StringFormat=N0}" Width="70" />
+                                <DataGridTextColumn Header="Read %" Binding="{Binding ReadRatio, StringFormat=P0}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+
+                    <!-- Chart: same per-day earnings line chart as Reports → Earnings -->
+                    <TabItem Header="Chart">
+                        <conv:EarningsChart x:Name="PayoutChart" Margin="0,8,0,0" />
+                    </TabItem>
+                </TabControl>
+            </DockPanel>
         </TabItem>
 
         <!-- Content tab: the captured article prose (enabler E2) -->

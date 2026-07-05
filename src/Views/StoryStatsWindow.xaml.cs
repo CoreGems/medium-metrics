@@ -16,6 +16,7 @@ public partial class StoryStatsWindow : Window
     private readonly Func<string, CancellationToken, Task<StoryDetail>> _fetchDetail;
     private readonly Func<string, StoryContent?> _getCachedContent;
     private readonly Func<string, CancellationToken, Task<StoryContent?>> _fetchContent;
+    private readonly Func<string, IReadOnlyList<StoryStatPoint>> _getStoryHistory;
     private readonly IReadOnlyList<StorySnapshot> _stories;
     private int _index;
     private StorySnapshot _story = null!;
@@ -25,11 +26,13 @@ public partial class StoryStatsWindow : Window
         Func<string, CancellationToken, Task<StoryDetail>> fetchDetail,
         Func<string, StoryContent?> getCachedContent,
         Func<string, CancellationToken, Task<StoryContent?>> fetchContent,
+        Func<string, IReadOnlyList<StoryStatPoint>> getStoryHistory,
         IReadOnlyList<StorySnapshot> stories, int index)
     {
         _fetchDetail = fetchDetail;
         _getCachedContent = getCachedContent;
         _fetchContent = fetchContent;
+        _getStoryHistory = getStoryHistory;
         _stories = stories;
         InitializeComponent();
         Icon = AppIcon.Get();
@@ -103,9 +106,56 @@ public partial class StoryStatsWindow : Window
 
         ContentStatus.Text = "";
         ShowContent(_getCachedContent(_story.StoryId));
+        ShowPayoutHistory(_story.StoryId);
 
         _ = LoadDetailAsync();
     }
+
+    /// <summary>
+    /// Populates the Payout History tab with this story's day-by-day gains, derived from the
+    /// per-story cumulative log (stories-history.csv). It accrues forward only — a story with no
+    /// logged refreshes yet shows an explanatory note rather than an empty grid.
+    /// </summary>
+    private void ShowPayoutHistory(string storyId)
+    {
+        var points = string.IsNullOrEmpty(storyId)
+            ? Array.Empty<StoryStatPoint>()
+            : _getStoryHistory(storyId);
+
+        // Latest cumulative values seen each local day, oldest→newest; each day's gain is vs the
+        // prior observed day (first day has no prior, so its gains are 0 — mirrors DailyStoryDeltas).
+        var perDay = points
+            .GroupBy(p => p.Timestamp.ToLocalTime().Date)
+            .Select(g => g.OrderBy(p => p.Timestamp).Last())
+            .OrderBy(p => p.Timestamp.ToLocalTime().Date)
+            .ToList();
+
+        var rows = new List<PayoutRow>(perDay.Count);
+        var chart = new List<DailyEarning>(perDay.Count);
+        StoryStatPoint? prev = null;
+        foreach (var p in perDay)
+        {
+            var day = p.Timestamp.ToLocalTime().Date;
+            long dv = prev is null ? 0 : p.Views - prev.Views;
+            long dr = prev is null ? 0 : p.Reads - prev.Reads;
+            decimal de = prev is null ? 0m : p.Earnings - prev.Earnings;
+            rows.Add(new PayoutRow(
+                day.ToString("yyyy-MM-dd"), de, p.Earnings, dv, dr, dv > 0 ? (double)dr / dv : 0d));
+            chart.Add(new DailyEarning { Day = day, Delta = de, Total = p.Earnings });
+            prev = p;
+        }
+
+        // Chart is oldest→newest (time flows left to right); the table shows most recent first.
+        PayoutChart.SetData(chart);
+        rows.Reverse();
+        PayoutGrid.ItemsSource = rows;
+        PayoutStatus.Text = rows.Count == 0
+            ? "No payout history yet — it accrues from each daily refresh (this story hasn't been logged yet)."
+            : $"{rows.Count} day{(rows.Count == 1 ? "" : "s")} logged  ·  {perDay[^1].Earnings:C2} earned to date.";
+    }
+
+    /// <summary>One row of the Payout History grid: a day's gains plus the cumulative total.</summary>
+    private sealed record PayoutRow(string Date, decimal Earned, decimal Total, long Views, long Reads, double ReadRatio);
 
     /// <summary>Populates the Content tab from captured content, or a prompt when none is cached.</summary>
     private void ShowContent(StoryContent? c)

@@ -1,10 +1,6 @@
-using System.Globalization;
 using System.Text;
 using System.Threading;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Shapes;
 using MediumMetrics.Models;
 using MediumMetrics.Services;
 
@@ -45,6 +41,7 @@ public partial class ReportsWindow : Window
         Closed += (_, _) => _cts.Cancel();
         BuildReports();
         BuildEarningsSummary();
+        EarningsChart.SetData(_daily);
     }
 
     private void BuildReports()
@@ -169,87 +166,6 @@ public partial class ReportsWindow : Window
         EarningsSummary.Text =
             $"Baseline {_earningsBaseline:C2}  ·  +{gained:C2} over {_daily.Count} day(s)  ·  " +
             $"avg {avg:C2}/day  ·  best {best.Delta:C2} on {best.Day:yyyy-MM-dd}  ·  now {_daily[^1].Total:C2}";
-    }
-
-    private void OnEarningsCanvasSizeChanged(object sender, SizeChangedEventArgs e) => DrawEarningsChart();
-
-    /// <summary>Draws the per-day earnings deltas as a simple line chart (no charting dependency).</summary>
-    private void DrawEarningsChart()
-    {
-        var canvas = EarningsCanvas;
-        canvas.Children.Clear();
-        double w = canvas.ActualWidth, h = canvas.ActualHeight;
-        if (w < 40 || h < 40) return;
-
-        var gridBrush = new SolidColorBrush(Color.FromRgb(0xEC, 0xEC, 0xEC));
-        var textBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88));
-        var lineBrush = new SolidColorBrush(Color.FromRgb(0x2E, 0x7D, 0x32));
-
-        if (_daily.Count == 0)
-        {
-            AddLabel("No earnings history yet.", w / 2, h / 2, textBrush, 12, TextAlignment.Center);
-            return;
-        }
-
-        const double mL = 56, mR = 16, mT = 14, mB = 30;
-        double pw = w - mL - mR, ph = h - mT - mB;
-        if (pw < 10 || ph < 10) return;
-
-        double max = (double)_daily.Max(d => d.Delta);
-        if (max <= 0) max = 1; // flat/zero series — keep a sane axis
-
-        int n = _daily.Count;
-        double X(int i) => n == 1 ? mL + pw / 2 : mL + i / (double)(n - 1) * pw;
-        double Y(decimal delta) => mT + ph - Math.Clamp((double)delta / max, 0, 1) * ph;
-
-        // Y gridlines + $ labels (0 .. max in quarters).
-        for (int i = 0; i <= 4; i++)
-        {
-            double frac = i / 4.0;
-            double y = mT + ph - frac * ph;
-            canvas.Children.Add(new Line { X1 = mL, X2 = mL + pw, Y1 = y, Y2 = y, Stroke = gridBrush, StrokeThickness = 1 });
-            AddLabel((max * frac).ToString("C2", CultureInfo.CurrentCulture), mL - 6, y - 8, textBrush, 10, TextAlignment.Right);
-        }
-
-        // The line itself.
-        var poly = new Polyline { Stroke = lineBrush, StrokeThickness = 2 };
-        for (int i = 0; i < n; i++) poly.Points.Add(new Point(X(i), Y(_daily[i].Delta)));
-        canvas.Children.Add(poly);
-
-        // Dots (with tooltips) and a handful of date labels along the bottom.
-        int labelStep = Math.Max(1, (int)Math.Ceiling(n / 6.0));
-        for (int i = 0; i < n; i++)
-        {
-            var d = _daily[i];
-            double x = X(i), y = Y(d.Delta);
-            var dot = new Ellipse
-            {
-                Width = 6, Height = 6, Fill = lineBrush,
-                ToolTip = $"{d.Day:yyyy-MM-dd}: +{d.Delta:C2}  (total {d.Total:C2})",
-            };
-            Canvas.SetLeft(dot, x - 3);
-            Canvas.SetTop(dot, y - 3);
-            canvas.Children.Add(dot);
-
-            if (i == 0 || i == n - 1 || i % labelStep == 0)
-                AddLabel(d.Day.ToString("MM-dd"), x, mT + ph + 4, textBrush, 10, TextAlignment.Center);
-        }
-    }
-
-    /// <summary>Adds a positioned text label to the chart canvas, aligned around (x, y).</summary>
-    private void AddLabel(string text, double x, double y, Brush brush, double size, TextAlignment align)
-    {
-        var tb = new TextBlock { Text = text, Foreground = brush, FontSize = size };
-        tb.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        double left = align switch
-        {
-            TextAlignment.Center => x - tb.DesiredSize.Width / 2,
-            TextAlignment.Right => x - tb.DesiredSize.Width,
-            _ => x,
-        };
-        Canvas.SetLeft(tb, left);
-        Canvas.SetTop(tb, y);
-        EarningsCanvas.Children.Add(tb);
     }
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
