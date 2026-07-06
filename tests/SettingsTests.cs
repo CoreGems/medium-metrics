@@ -33,7 +33,9 @@ public class SettingsTests
         var settings = new AppSettings { DataDirectory = @"C:\tmp\mm" };
         Assert.Equal(@"C:\tmp\mm\report.csv", settings.ReportCsvPath);
         Assert.Equal(@"C:\tmp\mm\latest.json", settings.LatestJsonPath);
-        Assert.Equal(@"C:\tmp\mm\accounts", settings.AccountsRoot);
+        Assert.Equal(@"C:\tmp\mm\platforms\medium\accounts", settings.AccountsRoot);
+        Assert.Equal(@"C:\tmp\mm\platforms\substack\accounts", settings.AccountsRootFor("substack"));
+        Assert.Equal(@"C:\tmp\mm\accounts", settings.LegacyAccountsRoot);
     }
 
     [Fact]

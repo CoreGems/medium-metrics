@@ -115,7 +115,7 @@ enable it.** This is an additive, opt-in convenience, not a default behaviour.
    └─────────────────────────────────────────────────────────────┘
                   │
                   ▼
-   %LOCALAPPDATA%\MediumMetrics\accounts\<id>\{latest.json, report.csv}
+   %LOCALAPPDATA%\MediumMetrics\platforms\medium\accounts\<id>\{latest.json, report.csv}
 ```
 
 Key points:

@@ -18,7 +18,7 @@ public sealed class AppSettings
 
     /// <summary>
     /// Registry of known Medium accounts. Each has its own data folder under
-    /// <c>{DataDirectory}\accounts\{Id}</c> (see <see cref="AccountConfig"/>).
+    /// <c>{DataDirectory}\platforms\medium\accounts\{Id}</c> (see <see cref="AccountConfig"/>).
     /// </summary>
     public List<AccountRef> Accounts { get; set; } = new();
 
@@ -54,8 +54,20 @@ public sealed class AppSettings
     public int ApiPort { get; set; } = 8780;
 
     // Derived file paths — not serialized, just convenient.
-    /// <summary>Root holding every account's isolated folder: <c>{DataDirectory}\accounts</c>.</summary>
-    [JsonIgnore] public string AccountsRoot => Path.Combine(DataDirectory, "accounts");
+    /// <summary>Root of the per-platform store: <c>{DataDirectory}\platforms</c>.</summary>
+    [JsonIgnore] public string PlatformsRoot => Path.Combine(DataDirectory, "platforms");
+
+    /// <summary>One platform's accounts root: <c>platforms\{platformId}\accounts</c>.</summary>
+    public string AccountsRootFor(string platformId) => Path.Combine(PlatformsRoot, platformId, "accounts");
+
+    /// <summary>Root holding every Medium account's isolated folder (module #1's store).</summary>
+    [JsonIgnore] public string AccountsRoot => AccountsRootFor(Platform.Medium.Id);
+
+    /// <summary>
+    /// Pre-platform accounts root (<c>{DataDirectory}\accounts</c>) — read only by the
+    /// one-time layout migration (see <see cref="Services.AccountMigration"/>).
+    /// </summary>
+    [JsonIgnore] public string LegacyAccountsRoot => Path.Combine(DataDirectory, "accounts");
     [JsonIgnore] public string ReportCsvPath => Path.Combine(DataDirectory, "report.csv");
     [JsonIgnore] public string LatestJsonPath => Path.Combine(DataDirectory, "latest.json");
     [JsonIgnore] public string SessionPath => Path.Combine(DataDirectory, "session.bin");
@@ -75,7 +87,7 @@ public sealed class AppSettings
             "MediumMetrics");
 }
 
-/// <summary>A known Medium account in the registry. Folder is <c>accounts\{Id}</c>.</summary>
+/// <summary>A known Medium account in the registry. Folder is <c>platforms\medium\accounts\{Id}</c>.</summary>
 public sealed class AccountRef
 {
     /// <summary>Stable key (Medium uid) — also the account's folder name.</summary>

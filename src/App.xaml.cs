@@ -64,6 +64,9 @@ public partial class App : Application
     /// </summary>
     private void LoadAccounts()
     {
+        // Layout upgrades, oldest first: flat accounts\ -> platforms\medium\accounts\,
+        // then a pre-multi-account install into the (now per-platform) accounts root.
+        AccountMigration.MoveToPlatformLayoutIfNeeded(_settings);
         AccountMigration.RunIfNeeded(_settings);
         // Re-adopt any account folders on disk that the registry doesn't know about
         // (e.g. if settings.json was lost/overwritten) so accounts are never orphaned.

@@ -4,13 +4,58 @@ using MediumMetrics.Models;
 namespace MediumMetrics.Services;
 
 /// <summary>
-/// One-time upgrade from the original single-account layout (data files directly
-/// under <c>DataDirectory</c>) to the per-account layout (<c>accounts\{id}\…</c>).
-/// Runs at startup and is idempotent: it does nothing once the registry holds any
-/// account. <c>settings.json</c> and <c>app.log</c> stay at the root (global).
+/// One-time on-disk layout upgrades, run at startup, oldest first and idempotent:
+/// the flat multi-account root (<c>accounts\{id}\…</c>) moves under the platform
+/// store (<c>platforms\medium\accounts\{id}\…</c>, see
+/// <see cref="Models.Platform"/>), and the original single-account layout (data
+/// files directly under <c>DataDirectory</c>) moves into the accounts root.
+/// Nothing is ever overwritten or deleted (except an emptied legacy folder).
+/// <c>settings.json</c> and <c>app.log</c> stay at the root (global).
 /// </summary>
 public static class AccountMigration
 {
+    /// <summary>
+    /// Moves the pre-platform accounts root (<c>accounts\</c>) to the per-platform
+    /// location (<c>platforms\medium\accounts\</c>). Normally one same-volume
+    /// directory rename, so histories and caches move wholesale; if the target
+    /// already exists (e.g. a partial earlier run), falls back to moving account
+    /// folders one by one, skipping any that already exist at the destination
+    /// (the stray source is left in place for inspection, never merged blindly).
+    /// Returns true if anything moved.
+    /// </summary>
+    public static bool MoveToPlatformLayoutIfNeeded(AppSettings settings)
+    {
+        string legacy = settings.LegacyAccountsRoot;
+        if (!Directory.Exists(legacy)) return false;
+
+        string target = settings.AccountsRoot;
+        if (!Directory.Exists(target))
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!); // platforms\medium
+                Directory.Move(legacy, target);
+                Log.Info($"Migrated account store: {legacy} -> {target}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"Migration: wholesale move {legacy} -> {target} failed; retrying per account", ex);
+            }
+        }
+
+        // Target already exists (or the wholesale rename failed): move per account.
+        bool moved = false;
+        foreach (var dir in Directory.GetDirectories(legacy))
+        {
+            MoveDirectory(dir, Path.Combine(target, Path.GetFileName(dir))); // skips existing targets
+            moved |= !Directory.Exists(dir);
+        }
+        TryDeleteEmpty(legacy);
+        if (moved) Log.Info($"Migrated account folders into {target}");
+        return moved;
+    }
+
     /// <summary>
     /// If the registry is empty but legacy data exists at the data root, move that
     /// data into <c>accounts\{id}\</c> and register one account. Mutates
@@ -50,7 +95,7 @@ public static class AccountMigration
         var acct = new AccountRef { Id = id, Label = label };
         settings.Accounts.Add(acct);
         settings.ActiveAccountId = id;
-        Log.Info($"Migrated legacy account into accounts\\{id} (label '{label}').");
+        Log.Info($"Migrated legacy account into {config.Root} (label '{label}').");
         return acct;
     }
 
@@ -75,7 +120,7 @@ public static class AccountMigration
             string label = NonBlank(snapshot?.AccountName) ?? Prefixed(snapshot?.AccountUsername, "@") ?? id;
             settings.Accounts.Add(new AccountRef { Id = id, Label = label });
             added++;
-            Log.Info($"Adopted orphaned account folder accounts\\{id} (label '{label}').");
+            Log.Info($"Adopted orphaned account folder {dir} (label '{label}').");
         }
 
         if (added > 0 && string.IsNullOrWhiteSpace(settings.ActiveAccountId))
@@ -108,5 +153,15 @@ public static class AccountMigration
             Directory.Move(from, to);
         }
         catch (Exception ex) { Log.Error($"Migration: could not move directory {from}", ex); }
+    }
+
+    private static void TryDeleteEmpty(string dir)
+    {
+        try
+        {
+            if (Directory.Exists(dir) && Directory.GetFileSystemEntries(dir).Length == 0)
+                Directory.Delete(dir);
+        }
+        catch (Exception ex) { Log.Error($"Migration: could not remove emptied {dir}", ex); }
     }
 }

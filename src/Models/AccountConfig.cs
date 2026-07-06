@@ -21,7 +21,8 @@ public sealed class AccountConfig
     public string Label { get; set; }
 
     /// <summary>
-    /// This account's data folder, e.g. <c>%LOCALAPPDATA%\MediumMetrics\accounts\&lt;id&gt;</c>.
+    /// This account's data folder, e.g.
+    /// <c>%LOCALAPPDATA%\MediumMetrics\platforms\medium\accounts\&lt;id&gt;</c>.
     /// </summary>
     public string Root { get; }
 
@@ -54,8 +55,4 @@ public sealed class AccountConfig
 
     /// <summary>Where a failed fetch dumps diagnostics (request/status/body) for this account.</summary>
     public string ErrorDumpPath  => LatestJsonPath + ".error";
-
-    /// <summary>Default accounts root: <c>%LOCALAPPDATA%\MediumMetrics\accounts</c>.</summary>
-    public static string DefaultAccountsRoot() =>
-        Path.Combine(AppSettings.DefaultDataDirectory(), "accounts");
 }
