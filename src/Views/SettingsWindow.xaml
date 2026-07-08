@@ -1,0 +1,51 @@
+<Window x:Class="MediumMetrics.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings" Height="560" Width="560"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <StackPanel Margin="16">
+        <TextBlock Text="Account" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock x:Name="SessionStatus" Foreground="#555" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <Button Content="Sign in / Re-sign in" Click="OnSignInClick" Padding="12,6" Margin="0,0,8,0" />
+            <Button x:Name="ClearButton" Content="Clear session" Click="OnClearClick" Padding="12,6" />
+        </StackPanel>
+
+        <TextBlock Text="Data folder" FontWeight="Bold" Margin="0,0,0,4" />
+        <TextBlock x:Name="DataFolderText" Foreground="#555" TextWrapping="Wrap" Margin="0,0,0,8" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+            <Button Content="Open data folder" Click="OnOpenFolderClick" Padding="12,6" Margin="0,0,8,0" />
+            <Button Content="Open log file" Click="OnOpenLogClick" Padding="12,6" Margin="0,0,8,0" />
+            <Button Content="Capture stats (debug)" Click="OnCaptureClick" Padding="12,6" />
+        </StackPanel>
+
+        <TextBlock TextWrapping="Wrap" Foreground="#888" FontSize="11" Margin="0,0,0,16">
+            Your session cookie is encrypted with Windows DPAPI and stored only on this PC.
+            report.csv (history) and latest.json (last snapshot) live in the data folder.
+        </TextBlock>
+
+        <TextBlock Text="Local API (for a Custom GPT / local tools)" FontWeight="Bold" Margin="0,0,0,4" />
+        <CheckBox x:Name="ApiEnabledCheck" Content="Enable the local read-only API while the app is open"
+                  Click="OnApiEnabledClick" Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBlock Text="Port:" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBox x:Name="ApiPortBox" Width="70" VerticalContentAlignment="Center" />
+            <Button Content="Apply" Click="OnApplyPortClick" Padding="10,3" Margin="6,0,0,0" />
+            <TextBlock x:Name="ApiStatusText" VerticalAlignment="Center" Margin="12,0,0,0" />
+        </StackPanel>
+        <TextBlock x:Name="ApiBaseUrlText" Foreground="#555" Margin="0,0,0,6" />
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <TextBox x:Name="ApiKeyBox" Width="320" IsReadOnly="True" FontFamily="Consolas"
+                     VerticalContentAlignment="Center" />
+            <Button Content="Copy key" Click="OnCopyKeyClick" Padding="10,3" Margin="6,0,0,0" />
+            <Button Content="Regenerate" Click="OnRegenerateKeyClick" Padding="10,3" Margin="6,0,0,0" />
+        </StackPanel>
+        <TextBlock TextWrapping="Wrap" Foreground="#888" FontSize="11" Margin="0,0,0,4">
+            Off by default. Serves read-only metrics at http://localhost:&lt;port&gt;/v1 to programs on this PC.
+            Reaching it from an OpenAI Custom GPT needs a tunnel (see OPENAI_CUSTOM_GPT.md) and makes your
+            metrics reachable off this PC; the bearer key gates every call.
+        </TextBlock>
+
+        <Button Content="Close" Click="OnCloseClick" Padding="16,6" HorizontalAlignment="Right" Margin="0,16,0,0" />
+    </StackPanel>
+</Window>

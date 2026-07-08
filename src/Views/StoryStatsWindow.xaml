@@ -1,0 +1,157 @@
+<Window x:Class="MediumMetrics.Views.StoryStatsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:MediumMetrics.Views"
+        Title="Story stats" Height="620" Width="600" MinHeight="420" MinWidth="460"
+        WindowStartupLocation="Manual">
+    <Window.Resources>
+        <conv:RatioToPercentConverter x:Key="Ratio" />
+        <Style TargetType="TextBlock" x:Key="Big">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style TargetType="TextBlock" x:Key="Label">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#777" />
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="16">
+        <!-- Header -->
+        <StackPanel DockPanel.Dock="Top">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button x:Name="PrevButton" Content="◀ Prev" Click="OnPrevClick" Padding="10,3"
+                        ToolTip="Previous story (in list order)" />
+                <Button x:Name="NextButton" Content="Next ▶" Click="OnNextClick" Padding="10,3" Margin="6,0,0,0"
+                        ToolTip="Next story (in list order)" />
+                <TextBlock x:Name="PositionText" VerticalAlignment="Center" Foreground="#777" FontSize="12" Margin="12,0,0,0" />
+            </StackPanel>
+            <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" />
+            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                <TextBlock Foreground="#777" FontSize="12">
+                    <Run Text="Published " /><Run Text="{Binding PublishedAt.LocalDateTime, StringFormat=yyyy-MM-dd, Mode=OneWay}" />
+                </TextBlock>
+                <Button Content="Open in browser" Click="OnOpenClick" Padding="8,2" Margin="12,0,0,0" />
+            </StackPanel>
+            <TextBlock x:Name="TagsText" Foreground="#777" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                       Visibility="Collapsed" />
+        </StackPanel>
+
+        <!-- Bottom buttons -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <TextBlock x:Name="DetailStatus" Foreground="#777" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0" />
+            <Button Content="Copy" Click="OnCopyClick" Padding="12,6" Margin="0,0,8,0"
+                    ToolTip="Copy all of this story's details to the clipboard" />
+            <Button x:Name="RefreshButton" Content="Refresh details" Click="OnRefreshClick" Padding="12,6" Margin="0,0,8,0" />
+            <Button Content="Close" Click="OnCloseClick" Padding="16,6" />
+        </StackPanel>
+
+        <!-- Fill area: Stats (numbers), Traffic sources, Payout History, and Content tabs -->
+        <TabControl>
+        <TabItem Header="Stats">
+        <!-- headline + impact tiles are Auto-height; a spacer row lets them sit at the top -->
+        <Grid Margin="0,8,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- Headline tiles (from the dashboard query, already loaded) -->
+            <StackPanel Grid.Row="0">
+                <UniformGrid Rows="1" Columns="3" Margin="0,18,0,0">
+                    <StackPanel><TextBlock x:Name="ViewsText" Text="{Binding Views}" Style="{StaticResource Big}" /><TextBlock Text="Views" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="ReadsText" Text="{Binding Reads}" Style="{StaticResource Big}" /><TextBlock Text="Reads" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="RatioText" Text="{Binding ReadRatio, Converter={StaticResource Ratio}}" Style="{StaticResource Big}" /><TextBlock Text="Read ratio" Style="{StaticResource Label}" /></StackPanel>
+                </UniformGrid>
+                <UniformGrid Rows="1" Columns="3" Margin="0,16,0,0">
+                    <StackPanel><TextBlock Text="{Binding Impressions}" Style="{StaticResource Big}" /><TextBlock Text="Impressions" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock Text="{Binding Claps}" Style="{StaticResource Big}" /><TextBlock Text="Claps" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock Text="{Binding EarningsUsd, StringFormat=C2}" Style="{StaticResource Big}" /><TextBlock Text="Earnings" Style="{StaticResource Label}" /></StackPanel>
+                </UniformGrid>
+            </StackPanel>
+
+            <!-- Impact (loaded on demand) -->
+            <StackPanel Grid.Row="1">
+                <Separator Margin="0,18,0,8" />
+                <TextBlock Text="Impact" FontWeight="SemiBold" Margin="0,0,0,8" />
+                <UniformGrid Rows="1" Columns="3">
+                    <StackPanel><TextBlock x:Name="FollowersText" Text="—" Style="{StaticResource Big}" /><TextBlock Text="Followers gained (net)" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="SubscribersText" Text="—" Style="{StaticResource Big}" /><TextBlock Text="Subscribers gained (net)" Style="{StaticResource Label}" /></StackPanel>
+                    <StackPanel><TextBlock x:Name="CtrText" Text="—" Style="{StaticResource Big}" /><TextBlock Text="Feed click-through" Style="{StaticResource Label}" /></StackPanel>
+                </UniformGrid>
+            </StackPanel>
+        </Grid>
+        </TabItem>
+
+        <!-- Traffic sources tab: referrers from the on-demand per-story detail -->
+        <TabItem Header="Traffic sources">
+            <DockPanel Margin="0,10,0,0">
+                <TextBlock DockPanel.Dock="Top" Text="Where this story's views came from"
+                           Foreground="#777" FontSize="12" Margin="0,0,0,8" />
+                <!-- Referrers list: fills the tab and grows as the window is resized -->
+                <DataGrid x:Name="ReferrersGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                          VerticalScrollBarVisibility="Auto">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="*" />
+                        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="120" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding Count}" Width="90" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </TabItem>
+
+        <!-- Payout History tab: this story's day-by-day gains from stories-history.csv -->
+        <TabItem Header="Payout History">
+            <DockPanel Margin="0,8,0,0">
+                <TextBlock x:Name="PayoutStatus" DockPanel.Dock="Top" Foreground="#777" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,0,0,8" />
+                <TabControl>
+                    <!-- Table: one row per observed day (amount gained + cumulative total) -->
+                    <TabItem Header="Table">
+                        <DataGrid x:Name="PayoutGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal" CanUserAddRows="False"
+                                  VerticalScrollBarVisibility="Auto" Margin="0,8,0,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="110" />
+                                <DataGridTextColumn Header="Earned" Binding="{Binding Earned, StringFormat=C2}" Width="90" />
+                                <DataGridTextColumn Header="Total" Binding="{Binding Total, StringFormat=C2}" Width="90" />
+                                <DataGridTextColumn Header="Views" Binding="{Binding Views, StringFormat=N0}" Width="70" />
+                                <DataGridTextColumn Header="Reads" Binding="{Binding Reads, StringFormat=N0}" Width="70" />
+                                <DataGridTextColumn Header="Read %" Binding="{Binding ReadRatio, StringFormat=P0}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </TabItem>
+
+                    <!-- Chart: same per-day earnings line chart as Reports → Earnings -->
+                    <TabItem Header="Chart">
+                        <conv:EarningsChart x:Name="PayoutChart" Margin="0,8,0,0" />
+                    </TabItem>
+                </TabControl>
+            </DockPanel>
+        </TabItem>
+
+        <!-- Content tab: the captured article prose (enabler E2) -->
+        <TabItem Header="Content">
+            <DockPanel Margin="0,10,0,0">
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="FetchContentButton" Content="Fetch content" Click="OnFetchContentClick"
+                                Padding="10,3" ToolTip="Capture (or refresh) this article's text from Medium" />
+                        <TextBlock x:Name="ContentStatus" VerticalAlignment="Center" Foreground="#777"
+                                   FontSize="11" Margin="12,0,0,0" />
+                    </StackPanel>
+                    <TextBlock x:Name="ContentSubtitle" FontStyle="Italic" Foreground="#555" TextWrapping="Wrap"
+                               Margin="0,8,0,0" Visibility="Collapsed" />
+                    <TextBlock x:Name="ContentMeta" Foreground="#777" FontSize="12" Margin="0,4,0,0" />
+                </StackPanel>
+                <TextBox x:Name="ContentBody" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+                         BorderThickness="0" Background="Transparent" Padding="0,4,0,0"
+                         VerticalScrollBarVisibility="Auto" FontSize="13"
+                         IsReadOnlyCaretVisible="True" />
+            </DockPanel>
+        </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

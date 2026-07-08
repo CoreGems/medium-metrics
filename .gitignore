@@ -141,3 +141,24 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# ---- .NET / WPF (MediumMetrics) ----
+bin/
+obj/
+*.user
+.vs/
+.idea/
+
+# App runtime data (private local stats — never commit)
+data/
+**/data/
+
+# Private drafts + reverse-engineering notes (kept local, not for the public repo)
+docs/private/
+
+# Publish output
+publish/
+
+# ---- Python (demo scripts) ----
+__pycache__/
+*.py[cod]

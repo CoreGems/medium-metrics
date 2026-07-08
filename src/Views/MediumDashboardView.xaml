@@ -1,0 +1,161 @@
+<UserControl x:Class="MediumMetrics.Views.MediumDashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:conv="clr-namespace:MediumMetrics.Views">
+    <UserControl.Resources>
+        <conv:RatioToPercentConverter x:Key="Ratio" />
+        <conv:EarningsDeltaConverter x:Key="EarnDelta" />
+        <conv:StringToVisibilityConverter x:Key="StrVis" />
+        <conv:InverseBooleanToVisibilityConverter x:Key="NotBoolVis" />
+        <BooleanToVisibilityConverter x:Key="BoolVis" />
+        <Style TargetType="TextBlock" x:Key="Stat">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style TargetType="TextBlock" x:Key="StatLabel">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="#777" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- Platform toolbar. Accounts, sign-in, reports and refresh are per-platform
+             concerns, so they live with the page rather than the window chrome. -->
+        <Border DockPanel.Dock="Top" Background="White" Padding="12,8" BorderBrush="#EEE" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Foreground="#777" FontSize="12">
+                    <Run Text="Last snapshot:" />
+                    <Run Text="{Binding LatestTimestampText, Mode=OneWay}" />
+                </TextBlock>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <ComboBox x:Name="AccountSwitcher" MinWidth="110" Margin="0,0,6,0" VerticalAlignment="Center"
+                              DisplayMemberPath="Label" SelectionChanged="OnAccountChanged"
+                              ToolTip="Switch Medium account" />
+                    <Button Content="＋" Click="OnAddAccountClick" Padding="8,6" Margin="0,0,12,0"
+                            ToolTip="Add another Medium account" />
+                    <TextBlock Text="{Binding AccountText}" Foreground="#2E7D32" VerticalAlignment="Center"
+                               Margin="0,0,10,0" FontSize="12"
+                               Visibility="{Binding IsSignedIn, Converter={StaticResource BoolVis}}" />
+                    <Button Content="Sign in to Medium" Click="OnSignInClick" Padding="10,6" Margin="0,0,8,0"
+                            Visibility="{Binding IsSignedIn, Converter={StaticResource NotBoolVis}}" />
+                    <Button Content="Reports" Click="OnReportsClick" Padding="10,6" Margin="0,0,8,0" />
+                    <Button Content="Refresh" Command="{Binding RefreshCommand}"
+                            Padding="14,6" FontWeight="SemiBold" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Busy bar -->
+        <ProgressBar DockPanel.Dock="Top" Height="3" IsIndeterminate="True"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BoolVis}}" />
+
+        <!-- Status / error banners -->
+        <Border DockPanel.Dock="Top" Background="#FDECEA" Padding="12,8"
+                Visibility="{Binding ErrorMessage, Converter={StaticResource StrVis}}">
+            <TextBlock Text="{Binding ErrorMessage}" Foreground="#B00020" TextWrapping="Wrap" />
+        </Border>
+        <Border DockPanel.Dock="Top" Background="#FFF8E1" Padding="12,6"
+                Visibility="{Binding StatusMessage, Converter={StaticResource StrVis}}">
+            <TextBlock Text="{Binding StatusMessage}" Foreground="#665C00" />
+        </Border>
+
+        <!-- Totals strip -->
+        <Border DockPanel.Dock="Top" Padding="16,10" Background="#FAFAFA" BorderBrush="#EEE" BorderThickness="0,0,0,1">
+            <UniformGrid Rows="1" Columns="4">
+                <StackPanel>
+                    <TextBlock Text="{Binding Followers}" Style="{StaticResource Stat}" />
+                    <TextBlock Text="Followers" Style="{StaticResource StatLabel}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="{Binding TotalViews}" Style="{StaticResource Stat}" />
+                    <TextBlock Text="Total views" Style="{StaticResource StatLabel}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="{Binding TotalReads}" Style="{StaticResource Stat}" />
+                    <TextBlock Text="Total reads" Style="{StaticResource StatLabel}" />
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="{Binding TotalEarnings, StringFormat=C2}" Style="{StaticResource Stat}" />
+                    <TextBlock Text="Total earnings" Style="{StaticResource StatLabel}" />
+                </StackPanel>
+            </UniformGrid>
+        </Border>
+
+        <!-- Stories + History -->
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0">
+                <DockPanel DockPanel.Dock="Top" Margin="2,0,0,4" LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" Text="Stories" FontWeight="Bold" VerticalAlignment="Center" />
+                    <Button DockPanel.Dock="Left" x:Name="FetchAllContentButton" Content="Fetch all content"
+                            Click="OnFetchAllContentClick" Padding="8,2" Margin="12,0,0,0"
+                            ToolTip="Capture article text for every story (skips ones already captured) so search and the GPT can read your prose" />
+                    <Grid DockPanel.Dock="Right" Width="220">
+                        <TextBox x:Name="StorySearch" Padding="4,2,20,2" VerticalContentAlignment="Center"
+                                 TextChanged="OnStorySearchChanged" KeyDown="OnStorySearchKeyDown"
+                                 ToolTip="Filter stories by title or tag (Esc to clear)" />
+                        <Button x:Name="StorySearchClear" Content="✕" Click="OnStorySearchClear"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Width="18" Height="18" Margin="0,0,3,0" Padding="0" FontSize="10"
+                                Background="Transparent" BorderThickness="0" Foreground="#888"
+                                Cursor="Hand" ToolTip="Clear search" Visibility="Collapsed" />
+                    </Grid>
+                </DockPanel>
+                <DataGrid x:Name="StoriesGrid" ItemsSource="{Binding Stories}" AutoGenerateColumns="False"
+                          IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          CanUserAddRows="False" MouseDoubleClick="OnStoryDoubleClick" Sorting="OnStoriesSorting"
+                          ToolTip="Double-click: story dashboard · Ctrl+double-click: open the article">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" />
+                        <DataGridTextColumn Header="Published" SortMemberPath="PublishedAt" Binding="{Binding PublishedAt.LocalDateTime, StringFormat=yyyy-MM-dd}" Width="95" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding Views}" Width="80" />
+                        <DataGridTextColumn Header="Reads" Binding="{Binding Reads}" Width="80" />
+                        <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />
+                        <DataGridTextColumn Header="Impressions" Binding="{Binding Impressions}" Width="100" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding EarningsUsd, StringFormat=C2}" Width="90" />
+                        <DataGridTextColumn Header="Earnings Δ" SortMemberPath="EarningsDelta" Binding="{Binding EarningsDelta, Converter={StaticResource EarnDelta}}" Width="95" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+
+            <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch" Background="Transparent" />
+
+            <DockPanel Grid.Row="2">
+                <TextBlock DockPanel.Dock="Top" Text="History (one line per refresh)" FontWeight="Bold" Margin="2,0,0,4" />
+                <DataGrid ItemsSource="{Binding History}" AutoGenerateColumns="False"
+                          IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          CanUserAddRows="False">
+                    <DataGrid.Resources>
+                        <ContextMenu x:Key="HistoryRowMenu">
+                            <MenuItem Header="Copy" Click="OnHistoryCopyClick" />
+                        </ContextMenu>
+                    </DataGrid.Resources>
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Setter Property="ContextMenu" Value="{StaticResource HistoryRowMenu}" />
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp.LocalDateTime, StringFormat=g}" Width="160" />
+                        <DataGridTextColumn Header="Followers" Binding="{Binding Followers}" Width="90" />
+                        <DataGridTextColumn Header="Views" Binding="{Binding TotalViews}" Width="80" />
+                        <DataGridTextColumn Header="Reads" Binding="{Binding TotalReads}" Width="80" />
+                        <DataGridTextColumn Header="Ratio" Binding="{Binding ReadRatio, Converter={StaticResource Ratio}}" Width="70" />
+                        <DataGridTextColumn Header="Impressions" Binding="{Binding TotalImpressions}" Width="100" />
+                        <DataGridTextColumn Header="Earnings" Binding="{Binding TotalEarningsUsd, StringFormat=C2}" Width="90" />
+                        <DataGridTextColumn Header="Stories" Binding="{Binding StoryCount}" Width="70" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</UserControl>
